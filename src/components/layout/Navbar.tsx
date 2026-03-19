@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,13 +8,19 @@ import { Menu, X, ChevronDown } from "lucide-react";
 import { NAV_LINKS } from "@/lib/constants";
 import { Button } from "@/components/ui/Button";
 import { useScrolled } from "@/hooks/useScrolled";
+import { isAuthenticated } from "@/lib/auth";
 
 type NavLink = (typeof NAV_LINKS)[number];
 
 export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
   const scrolled = useScrolled(50);
+
+  useEffect(() => {
+    setLoggedIn(isAuthenticated());
+  }, []);
 
   const isActive = (href: string) => pathname === href;
   const isCourseActive = (link: NavLink) => {
@@ -109,11 +115,11 @@ export function Navbar() {
         {/* Desktop CTA — brand outline-dark */}
         <div className="hidden lg:block">
           <Button
-            href="/pricing"
+            href={loggedIn ? "/dashboard" : "/pricing"}
             variant="outline-dark"
             className="!px-5 !py-2 text-sm"
           >
-            Get Started
+            {loggedIn ? "Dashboard" : "Get Started"}
           </Button>
         </div>
 
@@ -180,11 +186,11 @@ export function Navbar() {
           </ul>
           <div className="mt-4">
             <Button
-              href="/pricing"
+              href={loggedIn ? "/dashboard" : "/pricing"}
               variant="outline-dark"
               className="w-full text-sm"
             >
-              Get Started
+              {loggedIn ? "Dashboard" : "Get Started"}
             </Button>
           </div>
         </div>

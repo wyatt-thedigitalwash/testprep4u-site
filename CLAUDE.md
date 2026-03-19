@@ -8,8 +8,11 @@ This is a client project built and managed by The Digital Wash (Wyatt). The site
 
 ## Current Phase
 
-**Phase 1 — Public Marketing Site**
-Building the full public-facing marketing site from provided content docs. SEO-first, conversion-optimized. All copy has been provided by the client's content strategist (Jason Van Steenwyk). No auth, no dashboards, no SCORM integration yet.
+**Phase 1 — Public Marketing Site** (COMPLETE)
+Full public-facing marketing site built from provided content docs. SEO-first, conversion-optimized. All copy provided by the client's content strategist (Jason Van Steenwyk).
+
+**Phase 2 — Demo Dashboard** (ACTIVE)
+Building a prototype student dashboard with fake auth and mock data. Demonstrates the student experience (course progress, practice exams, SCORM viewer) without real backend infrastructure. Architecture mirrors production structure for easy swap to Supabase/Stripe later.
 
 ### Phase 1 Pages
 
@@ -24,12 +27,111 @@ Building the full public-facing marketing site from provided content docs. SEO-f
 - `/contact` — Contact / Support page
 - `/pricing` — Pricing page (3-tier comparison, course type toggle)
 
+### Phase 2 — Demo Dashboard
+
+A prototype/demo of the student experience using fake auth and mock data. No Supabase, no Stripe, no real backend. The architecture should mirror the real production structure so swapping to real auth and data later is straightforward — same component structure, same routes, just different data sources.
+
+#### Demo Auth
+
+- **Login page** at `/login` with hardcoded credentials: `demo@testprep4u.com` / `demo123`
+- Auth state stored in a cookie or localStorage — no real auth provider
+- Protected routes under `/dashboard/*` redirect to `/login` if not authenticated
+- Logout button clears auth state and redirects to homepage
+- When logged in, the marketing site navbar CTA changes to "Dashboard" linking to `/dashboard`
+
+#### Demo Pages
+
+- `/login` — Login page (email + password form, hardcoded credentials)
+- `/dashboard` — Student dashboard home
+  - Welcome message: "Welcome back, Alex"
+  - Enrolled courses with progress:
+    - Florida Life Insurance (65% complete, 5 of 8 chapters done)
+    - Florida Health Insurance (just enrolled, 0% complete)
+  - Each course card: course name, progress bar, chapters completed, last activity date, "Continue" button
+  - Quick stats: study hours (24hrs), practice exam average (76%), courses enrolled (2)
+  - Upcoming milestone: "Score 80%+ on 3 practice exams to qualify for the Pass Guarantee"
+- `/dashboard/courses/[courseId]` — Course detail page
+  - Chapter list with completion status (completed ✓, in progress, locked)
+  - Each chapter: number, title, estimated time, status
+  - "Launch Course" button → loads SCORM content in iframe (or placeholder)
+  - Practice exam section: available exams with previous attempt scores
+  - Progress sidebar/header showing overall course completion %
+- `/dashboard/courses/[courseId]/exams` — Practice exam results
+  - Mock exam history: 3 attempts with scores (68%, 72%, 76%)
+  - Score trend visualization (simple bar or line chart)
+  - Breakdown by topic area (strong/weak areas)
+  - Readiness indicator: "You're getting close — aim for 80%+ on your next attempt"
+- `/dashboard/settings` — Profile & settings
+  - Student info (name, email, state: Florida)
+  - Enrolled plan: Pro (9-month access, features included)
+  - Access expiration date
+  - Support link
+
+#### Dashboard Layout
+
+Dashboard pages use a **separate layout** from the marketing site:
+- **Sidebar navigation** (left): Dashboard, My Courses, Practice Exams, Settings, Logout
+- **Top bar**: student name + avatar placeholder
+- Marketing navbar and footer are **NOT** shown on dashboard pages
+
+#### Mock Data (`src/lib/mock-data.ts`)
+
+All demo student data, course progress, exam scores, and chapter lists live in a single mock data file. All dashboard components pull from this file. Designed for easy swap to real Supabase queries later.
+
+#### SCORM Demo
+
+- Download a free test SCORM package from scorm.com (Golf Examples SCORM 2004 Basic Runtime package)
+- Place unzipped files in `public/scorm/demo-course/`
+- "Launch Course" button loads SCORM content in an iframe pointing to the entry HTML file
+- Proof of concept only — no SCORM runtime API tracking yet, just showing content loads inside the platform
+
+#### Project Structure (Phase 2 additions)
+
+```
+src/
+├── app/
+│   ├── login/
+│   │   └── page.tsx                    # Demo login page
+│   ├── dashboard/
+│   │   ├── layout.tsx                  # Dashboard layout (sidebar, top bar, no marketing nav/footer)
+│   │   ├── page.tsx                    # Dashboard home
+│   │   ├── courses/
+│   │   │   └── [courseId]/
+│   │   │       ├── page.tsx            # Course detail (chapters, launch, progress)
+│   │   │       └── exams/
+│   │   │           └── page.tsx        # Practice exam results
+│   │   └── settings/
+│   │       └── page.tsx                # Profile & settings
+│   └── ...
+├── components/
+│   ├── dashboard/
+│   │   ├── Sidebar.tsx                 # Dashboard sidebar navigation
+│   │   ├── TopBar.tsx                  # Top bar with student name/avatar
+│   │   ├── CourseCard.tsx              # Enrolled course card with progress bar
+│   │   ├── StatsGrid.tsx              # Quick stats (study hours, avg score, etc.)
+│   │   ├── ChapterList.tsx            # Chapter list with completion status
+│   │   ├── ExamHistory.tsx            # Exam attempts list with scores
+│   │   ├── ScoreTrend.tsx             # Score trend visualization
+│   │   ├── TopicBreakdown.tsx         # Strong/weak area breakdown
+│   │   ├── ScormViewer.tsx            # SCORM iframe wrapper
+│   │   └── ProgressRing.tsx           # Circular progress indicator
+│   └── ...
+├── lib/
+│   ├── mock-data.ts                    # All demo student/course/exam data
+│   ├── auth.ts                         # Demo auth helpers (login, logout, check)
+│   └── ...
+public/
+├── scorm/
+│   └── demo-course/                    # Unzipped SCORM package files
+└── ...
+```
+
 ### Future Phases (do NOT build yet, but keep architecture compatible)
 
-- **Phase 2**: Supabase auth, student dashboard, enrollment flow, Stripe checkout
-- **Phase 3**: SCORM course hosting via Supabase Storage, iframe launcher, progress tracking
-- **Phase 4**: Admin dashboard (student management, course uploads, analytics)
-- **Phase 5**: Manager/affiliate portal (discount codes, referral tracking, manager dashboards)
+- **Phase 3**: Supabase auth (replace demo auth), Stripe checkout, real enrollment flow
+- **Phase 4**: SCORM course hosting via Supabase Storage, SCORM runtime API, real progress tracking
+- **Phase 5**: Admin dashboard (student management, course uploads, analytics)
+- **Phase 6**: Manager/affiliate portal (discount codes, referral tracking, manager dashboards)
 
 ---
 
@@ -632,7 +734,7 @@ All prices below are **CLIENT ACTION REQUIRED — confirm exact amounts before b
 
 ## Important Notes
 
-- **Do NOT build auth, dashboards, or SCORM integration in Phase 1.** The architecture should be compatible but no auth code, no Supabase client, no protected routes yet.
+- **Phase 2 is a demo only.** All dashboard features use mock data and fake auth. No Supabase, no Stripe, no real backend. Structure code so swapping to real providers later is straightforward.
 - **All copy comes from the client's content docs.** Do not rewrite or improvise marketing copy. Use the exact text provided by Jason Van Steenwyk. Annotations marked with ⚑ are client action items — use placeholder text where needed.
 - **Amber is a semantic warning color only.** Do not use amber for buttons, CTAs, badges, or decorative elements. Primary CTAs use blue-500 (light bg) or white (dark bg).
 - **Server Components by default.** Only add `'use client'` when a component genuinely needs interactivity (accordion, mobile nav toggle, state selector dropdown). Keep the JS bundle minimal.

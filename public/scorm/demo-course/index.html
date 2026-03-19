@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Florida Life Insurance — Pre-Licensing Course</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #003152;
+    --blue-100: #D9E4FC;
+    --blue-500: #447FF0;
+    --blue-600: #3669D8;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --success: #10b981;
+    --success-light: #d1fae5;
+    --error: #ef4444;
+    --error-light: #fee2e2;
+    --warning: #f59e0b;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--gray-700);
+    background: var(--gray-50);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    background: var(--navy);
+    color: white;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .topbar-brand {
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .topbar-brand span { color: var(--blue-500); }
+  .topbar-course {
+    font-size: 13px;
+    color: var(--blue-100);
+  }
+  .topbar-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--gray-300);
+  }
+  .topbar-progress-bar {
+    width: 120px;
+    height: 6px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .topbar-progress-fill {
+    height: 100%;
+    background: var(--blue-500);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+
+  /* ---- Layout ---- */
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ---- Sidebar ---- */
+  .sidebar {
+    width: 280px;
+    background: white;
+    border-right: 1px solid var(--gray-200);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gray-200);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gray-400);
+  }
+  .chapter-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background 0.15s;
+    font-size: 13px;
+  }
+  .chapter-item:hover { background: var(--gray-50); }
+  .chapter-item.active {
+    background: var(--blue-100);
+    border-left: 3px solid var(--blue-500);
+    padding-left: 17px;
+  }
+  .chapter-item.active .chapter-title { color: var(--navy); font-weight: 600; }
+  .chapter-item.completed .chapter-icon { background: var(--success-light); color: var(--success); }
+  .chapter-item.locked { opacity: 0.5; cursor: default; }
+  .chapter-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: var(--gray-100);
+    color: var(--gray-500);
+  }
+  .chapter-item.active .chapter-icon { background: var(--blue-500); color: white; }
+  .chapter-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .chapter-title {
+    color: var(--gray-700);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chapter-duration {
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-top: 1px;
+  }
+  .chapter-status {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .chapter-status.done { background: var(--success-light); color: var(--success); }
+  .chapter-status.current { background: var(--blue-100); color: var(--blue-500); }
+  .chapter-status.lock { background: var(--gray-100); color: var(--gray-400); }
+
+  /* ---- Main content ---- */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .content {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 48px;
+    flex: 1;
+  }
+  .content h1 {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--navy);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .content .chapter-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--blue-500);
+    margin-bottom: 8px;
+  }
+  .content h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 32px 0 12px;
+    letter-spacing: -0.01em;
+  }
+  .content p {
+    margin-bottom: 16px;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .content ul {
+    margin: 0 0 16px 20px;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .content li { margin-bottom: 6px; }
+  .content li::marker { color: var(--blue-500); }
+
+  .callout {
+    background: var(--blue-100);
+    border-left: 4px solid var(--blue-500);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 24px 0;
+    font-size: 14px;
+    color: var(--navy);
+  }
+  .callout strong { display: block; margin-bottom: 4px; font-size: 13px; }
+
+  .key-term {
+    background: var(--gray-100);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 20px 0;
+    font-size: 14px;
+    border: 1px solid var(--gray-200);
+  }
+  .key-term .term { font-weight: 700; color: var(--navy); }
+
+  /* ---- Quiz ---- */
+  .quiz-section {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 32px;
+    margin: 32px 0;
+  }
+  .quiz-section h2 {
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .quiz-badge {
+    display: inline-block;
+    background: var(--blue-100);
+    color: var(--blue-500);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .question {
+    margin-bottom: 28px;
+  }
+  .question:last-child { margin-bottom: 0; }
+  .question p {
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 12px;
+    font-size: 15px;
+  }
+  .options { list-style: none; margin: 0; padding: 0; }
+  .options li {
+    padding: 10px 16px;
+    margin-bottom: 6px;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .options li:hover { border-color: var(--blue-500); background: var(--blue-100); }
+  .options li.selected { border-color: var(--blue-500); background: var(--blue-100); font-weight: 500; }
+  .options li.correct { border-color: var(--success); background: var(--success-light); }
+  .options li.incorrect { border-color: var(--error); background: var(--error-light); }
+  .option-letter {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gray-500);
+    flex-shrink: 0;
+  }
+  .options li.selected .option-letter { background: var(--blue-500); color: white; }
+  .options li.correct .option-letter { background: var(--success); color: white; }
+  .options li.incorrect .option-letter { background: var(--error); color: white; }
+
+  .quiz-feedback {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    display: none;
+  }
+  .quiz-feedback.show { display: block; }
+  .quiz-feedback.pass { background: var(--success-light); color: var(--success); }
+  .quiz-feedback.fail { background: var(--error-light); color: var(--error); }
+
+  .btn-submit {
+    background: var(--blue-500);
+    color: white;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 16px;
+  }
+  .btn-submit:hover { background: var(--blue-600); }
+  .btn-submit:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---- Footer nav ---- */
+  .footer-nav {
+    border-top: 1px solid var(--gray-200);
+    padding: 16px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    flex-shrink: 0;
+  }
+  .btn-nav {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-prev {
+    background: white;
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
+  }
+  .btn-prev:hover { background: var(--gray-50); border-color: var(--gray-300); }
+  .btn-prev:disabled { opacity: 0.4; cursor: default; }
+  .btn-next {
+    background: var(--blue-500);
+    color: white;
+  }
+  .btn-next:hover { background: var(--blue-600); }
+  .page-indicator {
+    font-size: 13px;
+    color: var(--gray-400);
+    font-weight: 500;
+  }
+
+  /* ---- Completion screen ---- */
+  .completion {
+    text-align: center;
+    padding: 60px 40px;
+  }
+  .completion-icon {
+    width: 72px;
+    height: 72px;
+    background: var(--success-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 32px;
+  }
+  .completion h1 { margin-bottom: 12px; }
+  .completion p { color: var(--gray-500); max-width: 420px; margin: 0 auto 8px; }
+  .score-display {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--navy);
+    margin: 24px 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .score-label {
+    font-size: 14px;
+    color: var(--gray-500);
+    margin-bottom: 32px;
+  }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .content { padding: 24px 20px; }
+    .footer-nav { padding: 12px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div>
+    <div class="topbar-brand">TestPrep<span>4U</span></div>
+    <div class="topbar-course">Florida Life Insurance — Pre-Licensing Course</div>
+  </div>
+  <div class="topbar-progress">
+    <span id="progress-text">0% Complete</span>
+    <div class="topbar-progress-bar">
+      <div class="topbar-progress-fill" id="progress-fill" style="width: 0%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">Course Contents</div>
+    <div id="chapter-list"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="content" id="content-area"></div>
+    <div class="footer-nav">
+      <button class="btn-nav btn-prev" id="btn-prev" onclick="prevPage()" disabled>&#8592; Previous</button>
+      <span class="page-indicator" id="page-indicator"></span>
+      <button class="btn-nav btn-next" id="btn-next" onclick="nextPage()">Next &#8594;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const chapters = [
+  { title: "General Insurance Concepts", duration: "45 min", status: "completed" },
+  { title: "Life Policy Types", duration: "1 hr", status: "completed" },
+  { title: "Policy Provisions & Options", duration: "50 min", status: "completed" },
+  { title: "Riders & Benefits", duration: "40 min", status: "completed" },
+  { title: "Tax Considerations", duration: "35 min", status: "completed" },
+  { title: "Qualified & Retirement Plans", duration: "55 min", status: "current" },
+  { title: "Florida Life Insurance Law", duration: "1 hr", status: "locked" },
+  { title: "Ethics & Producer Responsibilities", duration: "45 min", status: "locked" },
+];
+
+// Pages for "Qualified & Retirement Plans" (Chapter 6, the in-progress one)
+const pages = [
+  // Page 1: Intro
+  function() {
+    return `
+      <div class="chapter-label">Chapter 6 of 8</div>
+      <h1>Qualified & Retirement Plans</h1>
+      <p>This chapter covers the essential retirement planning vehicles that insurance producers must understand. You'll learn about the tax advantages of qualified plans, the difference between qualified and non-qualified plans, and how life insurance products integrate with retirement planning.</p>
+
+      <div class="callout">
+        <strong>Learning Objectives</strong>
+        By the end of this chapter, you will be able to:<br>
+        &bull; Distinguish between qualified and non-qualified retirement plans<br>
+        &bull; Identify key features of IRAs, 401(k)s, and defined benefit plans<br>
+        &bull; Explain how annuities function as retirement vehicles<br>
+        &bull; Understand the tax implications of plan distributions
+      </div>
+
+      <h2>What Makes a Plan "Qualified"?</h2>
+      <p>A <strong>qualified plan</strong> is a retirement plan that meets specific requirements set forth in Section 401(a) of the Internal Revenue Code (IRC). These plans receive favorable tax treatment in exchange for meeting rules regarding participation, vesting, funding, and distribution.</p>
+
+      <div class="key-term">
+        <span class="term">Qualified Plan</span> — A retirement plan that meets IRS requirements under IRC Section 401(a) and receives tax-deferred treatment. Contributions are typically tax-deductible for employers, and earnings grow tax-deferred until distribution.
+      </div>
+
+      <p>The key tax advantages of qualified plans include:</p>
+      <ul>
+        <li><strong>Employer contributions</strong> are tax-deductible as a business expense</li>
+        <li><strong>Employee contributions</strong> may be made pre-tax (reducing current taxable income)</li>
+        <li><strong>Earnings</strong> grow tax-deferred within the plan</li>
+        <li><strong>Distributions</strong> are taxed as ordinary income when received</li>
+      </ul>
+    `;
+  },
+
+  // Page 2: Plan Types
+  function() {
+    return `
+      <div class="chapter-label">Chapter 6 of 8</div>
+      <h1>Types of Qualified Plans</h1>
+
+      <h2>Defined Benefit Plans</h2>
+      <p>A defined benefit plan promises a specific monthly benefit at retirement, typically calculated using a formula based on the employee's salary history and years of service. The employer bears the investment risk and is responsible for ensuring adequate funding.</p>
+      <p>Common formula: <strong>1.5% × years of service × average of highest 3 years' salary</strong></p>
+
+      <div class="callout">
+        <strong>Exam Tip</strong>
+        Defined benefit plans define the <em>benefit</em> (retirement payout). Defined contribution plans define the <em>contribution</em> (amount put in). This distinction is a frequent exam question.
+      </div>
+
+      <h2>Defined Contribution Plans</h2>
+      <p>In a defined contribution plan, the contribution amount is specified, but the retirement benefit depends on investment performance. The employee bears the investment risk.</p>
+      <p>Common types include:</p>
+      <ul>
+        <li><strong>401(k) Plan</strong> — Employees contribute pre-tax dollars; employers may match. 2026 contribution limit: $23,500 ($31,000 for age 50+).</li>
+        <li><strong>403(b) Plan</strong> — Similar to 401(k) but for employees of public schools and tax-exempt organizations.</li>
+        <li><strong>Profit-Sharing Plan</strong> — Employer contributes a percentage of profits; contributions are discretionary each year.</li>
+        <li><strong>Money Purchase Plan</strong> — Employer commits to a fixed contribution percentage regardless of profits.</li>
+      </ul>
+
+      <div class="key-term">
+        <span class="term">Vesting</span> — The process by which an employee earns the right to employer contributions. Employees are always 100% vested in their own contributions. Employer contributions may vest over a schedule (e.g., 3-year cliff or 6-year graded vesting).
+      </div>
+
+      <h2>Individual Retirement Accounts (IRAs)</h2>
+      <p>While not employer-sponsored plans, IRAs are critical retirement vehicles that insurance producers must understand:</p>
+      <ul>
+        <li><strong>Traditional IRA</strong> — Contributions may be tax-deductible; earnings grow tax-deferred; distributions taxed as ordinary income.</li>
+        <li><strong>Roth IRA</strong> — Contributions are made with after-tax dollars; qualified distributions are completely tax-free.</li>
+      </ul>
+      <p>Both types have a 2026 contribution limit of <strong>$7,000</strong> ($8,000 for age 50+). Early withdrawals before age 59½ generally incur a 10% penalty plus income tax.</p>
+    `;
+  },
+
+  // Page 3: Annuities
+  function() {
+    return `
+      <div class="chapter-label">Chapter 6 of 8</div>
+      <h1>Annuities in Retirement Planning</h1>
+
+      <p>An annuity is a contract between an individual and an insurance company that provides a stream of income in exchange for premium payments. Annuities play a significant role in retirement planning because they can guarantee income for life.</p>
+
+      <h2>Types of Annuities</h2>
+      <ul>
+        <li><strong>Fixed Annuity</strong> — Guarantees a minimum interest rate and fixed periodic payments. The insurance company bears the investment risk.</li>
+        <li><strong>Variable Annuity</strong> — Payments vary based on the performance of underlying investment subaccounts. The contract owner bears the investment risk. <em>Requires a securities license to sell.</em></li>
+        <li><strong>Indexed Annuity</strong> — Returns are tied to a market index (e.g., S&P 500) with a guaranteed minimum. Offers upside potential with downside protection.</li>
+      </ul>
+
+      <div class="callout">
+        <strong>Key Concept: Accumulation vs. Annuitization</strong>
+        During the <strong>accumulation phase</strong>, the owner makes premium payments and the contract value grows tax-deferred. During the <strong>annuitization phase</strong>, the insurance company converts the accumulated value into periodic income payments.
+      </div>
+
+      <h2>Annuity Payout Options</h2>
+      <ul>
+        <li><strong>Life Only</strong> — Highest periodic payment; payments cease at death. No beneficiary payment.</li>
+        <li><strong>Life with Period Certain</strong> — Payments for life, with a guaranteed minimum period (e.g., 10 years). If the annuitant dies during the period, remaining payments go to the beneficiary.</li>
+        <li><strong>Joint and Survivor</strong> — Payments continue for the life of two people. Payments may reduce after the first death.</li>
+      </ul>
+
+      <h2>Tax Treatment of Annuities</h2>
+      <p>Annuity earnings grow <strong>tax-deferred</strong> during the accumulation phase. When distributions begin:</p>
+      <ul>
+        <li>The portion of each payment representing the owner's cost basis (premiums paid) is received <strong>tax-free</strong></li>
+        <li>The earnings portion is taxed as <strong>ordinary income</strong></li>
+        <li>Withdrawals before age 59½ may be subject to a <strong>10% early withdrawal penalty</strong></li>
+        <li>Annuities use the <strong>LIFO (Last In, First Out)</strong> method — earnings are considered withdrawn first</li>
+      </ul>
+
+      <div class="key-term">
+        <span class="term">1035 Exchange</span> — A tax-free exchange of one insurance product for another (e.g., annuity to annuity, or life insurance to annuity). Named after IRC Section 1035. No taxable event occurs if done properly.
+      </div>
+    `;
+  },
+
+  // Page 4: Quiz
+  function() {
+    return `
+      <div class="chapter-label">Chapter 6 of 8</div>
+      <h1>Knowledge Check</h1>
+      <p>Test your understanding of qualified plans and retirement vehicles. You must answer all questions to proceed.</p>
+
+      <div class="quiz-section">
+        <h2>Chapter Quiz <span class="quiz-badge">3 Questions</span></h2>
+
+        <div class="question" data-correct="1">
+          <p>1. What is the primary difference between a defined benefit plan and a defined contribution plan?</p>
+          <ul class="options">
+            <li onclick="selectOption(this)"><span class="option-letter">A</span> Defined benefit plans are only available to government employees</li>
+            <li onclick="selectOption(this)"><span class="option-letter">B</span> In a defined benefit plan, the retirement benefit amount is predetermined; in a defined contribution plan, only the contribution amount is specified</li>
+            <li onclick="selectOption(this)"><span class="option-letter">C</span> Defined contribution plans guarantee a specific monthly retirement income</li>
+            <li onclick="selectOption(this)"><span class="option-letter">D</span> There is no tax difference between the two plan types</li>
+          </ul>
+        </div>
+
+        <div class="question" data-correct="2">
+          <p>2. Which annuity payout option provides the highest periodic payment amount?</p>
+          <ul class="options">
+            <li onclick="selectOption(this)"><span class="option-letter">A</span> Joint and Survivor</li>
+            <li onclick="selectOption(this)"><span class="option-letter">B</span> Life with 20-Year Period Certain</li>
+            <li onclick="selectOption(this)"><span class="option-letter">C</span> Life Only (Straight Life)</li>
+            <li onclick="selectOption(this)"><span class="option-letter">D</span> Installment Refund</li>
+          </ul>
+        </div>
+
+        <div class="question" data-correct="3">
+          <p>3. Under a 1035 Exchange, which of the following transfers would NOT qualify as tax-free?</p>
+          <ul class="options">
+            <li onclick="selectOption(this)"><span class="option-letter">A</span> Life insurance policy exchanged for an annuity contract</li>
+            <li onclick="selectOption(this)"><span class="option-letter">B</span> Annuity contract exchanged for another annuity contract</li>
+            <li onclick="selectOption(this)"><span class="option-letter">C</span> Life insurance policy exchanged for another life insurance policy</li>
+            <li onclick="selectOption(this)"><span class="option-letter">D</span> Annuity contract exchanged for a life insurance policy</li>
+          </ul>
+        </div>
+
+        <button class="btn-submit" id="btn-quiz-submit" onclick="submitQuiz()" disabled>Submit Answers</button>
+        <div class="quiz-feedback" id="quiz-feedback"></div>
+      </div>
+    `;
+  },
+
+  // Page 5: Completion
+  function() {
+    return `
+      <div class="completion">
+        <div class="completion-icon">&#10003;</div>
+        <h1>Chapter Complete!</h1>
+        <p>You've successfully completed Chapter 6: Qualified & Retirement Plans.</p>
+        <div class="score-display" id="final-score">3/3</div>
+        <div class="score-label">Quiz Score</div>
+        <p>You're making excellent progress. Continue to Chapter 7 to learn about Florida Life Insurance Law.</p>
+        <div style="margin-top: 32px;">
+          <button class="btn-submit" onclick="window.parent.postMessage('scorm-close','*')" style="padding: 12px 32px; font-size: 15px;">
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    `;
+  }
+];
+
+let currentPage = 0;
+let quizScore = 0;
+let quizSubmitted = false;
+
+function renderSidebar() {
+  const list = document.getElementById('chapter-list');
+  list.innerHTML = chapters.map((ch, i) => {
+    const num = String(i + 1).padStart(2, '0');
+    const statusClass = ch.status === 'completed' ? 'completed' : ch.status === 'current' ? 'active' : 'locked';
+    const statusLabel = ch.status === 'completed' ? '<span class="chapter-status done">Done</span>'
+      : ch.status === 'current' ? '<span class="chapter-status current">In Progress</span>'
+      : '<span class="chapter-status lock">Locked</span>';
+    const icon = ch.status === 'completed' ? '&#10003;' : num;
+    return `
+      <div class="chapter-item ${statusClass}" ${ch.status === 'current' ? `onclick="currentPage=0;render()"` : ''}>
+        <div class="chapter-icon">${icon}</div>
+        <div class="chapter-meta">
+          <div class="chapter-title">${ch.title}</div>
+          <div class="chapter-duration">${ch.duration}</div>
+        </div>
+        ${statusLabel}
+      </div>
+    `;
+  }).join('');
+}
+
+function render() {
+  document.getElementById('content-area').innerHTML = pages[currentPage]();
+  document.getElementById('btn-prev').disabled = currentPage === 0;
+
+  const isQuizPage = currentPage === 3;
+  const isLastPage = currentPage === pages.length - 1;
+
+  if (isLastPage) {
+    document.getElementById('btn-next').style.display = 'none';
+    document.getElementById('btn-prev').style.display = 'none';
+  } else {
+    document.getElementById('btn-next').style.display = '';
+    document.getElementById('btn-prev').style.display = '';
+  }
+
+  if (isQuizPage && !quizSubmitted) {
+    document.getElementById('btn-next').disabled = true;
+  } else {
+    document.getElementById('btn-next').disabled = false;
+  }
+
+  document.getElementById('page-indicator').textContent =
+    isLastPage ? '' : `Page ${currentPage + 1} of ${pages.length}`;
+
+  // Update progress
+  const progress = Math.round((currentPage / (pages.length - 1)) * 100);
+  document.getElementById('progress-fill').style.width = progress + '%';
+  document.getElementById('progress-text').textContent = progress + '% Complete';
+
+  // Scroll main to top
+  document.querySelector('.main').scrollTo(0, 0);
+}
+
+function nextPage() {
+  if (currentPage < pages.length - 1) {
+    currentPage++;
+    render();
+  }
+}
+
+function prevPage() {
+  if (currentPage > 0) {
+    currentPage--;
+    render();
+  }
+}
+
+function selectOption(li) {
+  if (quizSubmitted) return;
+  const siblings = li.parentElement.children;
+  for (let s of siblings) s.classList.remove('selected');
+  li.classList.add('selected');
+
+  // Enable submit if all questions answered
+  const questions = document.querySelectorAll('.question');
+  const allAnswered = Array.from(questions).every(q =>
+    q.querySelector('.options li.selected')
+  );
+  document.getElementById('btn-quiz-submit').disabled = !allAnswered;
+}
+
+function submitQuiz() {
+  quizSubmitted = true;
+  quizScore = 0;
+  const questions = document.querySelectorAll('.question');
+
+  questions.forEach(q => {
+    const correctIdx = parseInt(q.dataset.correct) - 1;
+    const options = q.querySelectorAll('.options li');
+    const selectedIdx = Array.from(options).findIndex(li => li.classList.contains('selected'));
+
+    options.forEach((li, i) => {
+      li.style.cursor = 'default';
+      if (i === correctIdx) {
+        li.classList.add('correct');
+        li.classList.remove('selected');
+      } else if (i === selectedIdx && selectedIdx !== correctIdx) {
+        li.classList.add('incorrect');
+        li.classList.remove('selected');
+      }
+    });
+
+    if (selectedIdx === correctIdx) quizScore++;
+  });
+
+  const feedback = document.getElementById('quiz-feedback');
+  const passed = quizScore >= 2;
+  feedback.className = `quiz-feedback show ${passed ? 'pass' : 'fail'}`;
+  feedback.textContent = passed
+    ? `Great work! You scored ${quizScore}/3. You can proceed to the chapter summary.`
+    : `You scored ${quizScore}/3. Review the material and try again. You need at least 2/3 to proceed.`;
+
+  document.getElementById('btn-quiz-submit').disabled = true;
+
+  if (passed) {
+    document.getElementById('btn-next').disabled = false;
+  }
+}
+
+// Initialize
+renderSidebar();
+render();
+</script>
+</body>
+</html>
