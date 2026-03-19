@@ -13,7 +13,7 @@ Building the full public-facing marketing site from provided content docs. SEO-f
 
 ### Phase 1 Pages
 
-- `/` — Homepage (hero, stats strip, feature grid, steps overview, guarantee, FAQs preview)
+- `/` — Homepage (hero + metric strip, feature grid, steps overview, guarantee, quick facts, FAQ preview, bottom CTA)
 - `/how-to-get-your-insurance-license` — Process page (6-step guide, sticky sidebar nav, metric strips)
 - `/life-insurance-exam-prep` — Life course product page
 - `/health-insurance-exam-prep` — Health course product page
@@ -50,26 +50,23 @@ Building the full public-facing marketing site from provided content docs. SEO-f
 
 ## Brand System
 
-All theme values are configured via the `@theme` block in `src/app/globals.css` (Tailwind v4 convention — no `tailwind.config.ts`).
+All theme values are configured via the `@theme inline` block in `src/app/globals.css` (Tailwind v4 convention — no `tailwind.config.ts`).
 
 ### Colors
 
 ```css
 /* src/app/globals.css — inside @theme inline { } */
 
-/* Primary */
+/* Primary — matches logo */
 --color-navy: #003152;
 
-/* Blue Scale */
---color-blue-100: #d8e5fd;
+/* Blue Scale — blue-100, blue-500 match logo colors */
+--color-blue-100: #D9E4FC;
 --color-blue-200: #b5cdfd;
 --color-blue-300: #93b1f7;
 --color-blue-400: #6a9af7;
---color-blue-500: #4680eb;
-
-/* CTA Accent */
---color-amber: #f59e0b;
---color-amber-hover: #d97706;
+--color-blue-500: #447FF0;
+--color-blue-600: #3669D8;
 
 /* Neutrals (Slate scale) */
 --color-gray-50: #f8fafc;
@@ -90,21 +87,33 @@ All theme values are configured via the `@theme` block in `src/app/globals.css` 
 --color-error-light: #fee2e2;
 --color-warning: #f59e0b;
 --color-warning-light: #fef3c7;
---color-info: #4680eb;
+--color-info: #447FF0;
 --color-info-light: #dbeafe;
 ```
 
 ### Color Usage Rules
 
-- **Navy (#003152)**: Primary backgrounds — hero, nav, footer, section headers
-- **White**: Page backgrounds, card backgrounds, text on dark surfaces
-- **Blue 100–200**: Section backgrounds, card fills, alternating table rows, subtle highlights
-- **Blue 300–500**: Links, active states, progress bars, interactive elements, secondary buttons
-- **Amber (#F59E0B)**: Primary CTA buttons ONLY — never decorative. One primary CTA per section max.
-- **Gray 700**: Default body text
-- **Gray 500**: Secondary/supporting text
+**On dark backgrounds (navy, gradient):**
+- **White**: Headlines, primary text
+- **Blue 100 (#D9E4FC)**: Body text, subheadlines, nav links — readable without harsh white
+- **Gray 300**: Secondary body text (metric labels, footer column headers, copyright)
+- **Gray 400**: Tertiary text (source citations, timestamps)
+
+**On light backgrounds (white, gray-50):**
+- **Navy (#003152)**: All headlines (h1–h4), card titles, strong text
+- **Gray 700**: Default body text (set in globals.css `body` rule)
+- **Gray 800**: Emphasized body text (stat labels in QuickFacts)
+- **Gray 500**: Secondary/supporting body text, descriptions, subheadlines
+- **Gray 600**: FAQ answer text
 - **Gray 200**: Borders, dividers
-- **Gray 50**: Subtle alternating backgrounds
+- **Gray 50**: Alternating section backgrounds
+
+**Brand accent colors:**
+- **Blue 500 (#447FF0)**: Primary CTA buttons (light bg), links, active nav indicators, icon accents, eyebrow labels
+- **Blue 600 (#3669D8)**: Hover state for blue-500 buttons
+- **Blue 200**: Decorative elements (step numbers in StepsOverview), accent bar hover states
+- **Blue 100**: Icon container backgrounds (`bg-blue-100`)
+- **Amber (#F59E0B)**: Semantic warning color ONLY. NOT for buttons, CTAs, badges, or decorative elements.
 
 ### Typography
 
@@ -112,6 +121,12 @@ All theme values are configured via the `@theme` block in `src/app/globals.css` 
 /* src/app/globals.css — inside @theme inline { } */
 --font-display: var(--font-jakarta), sans-serif;
 --font-body: var(--font-dm), sans-serif;
+```
+
+**Global rules in globals.css:**
+```css
+body { font-family: var(--font-body); color: var(--color-gray-700); }
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; line-height: 1.15; }
 ```
 
 **Font loading in layout.tsx:**
@@ -132,154 +147,321 @@ const dm = DM_Sans({
 });
 ```
 
-### Type Scale
+### Type Scale (as implemented)
 
-| Element       | Size            | Weight          | Font    | Usage                         |
-| ------------- | --------------- | --------------- | ------- | ----------------------------- |
-| H1 Hero       | 3rem (48px)     | ExtraBold (800) | Display | Hero headlines only           |
-| H2 Page Title | 2.25rem (36px)  | Bold (700)      | Display | Section headers               |
-| H3 Section    | 1.5rem (24px)   | Bold (700)      | Display | Card titles, subsections      |
-| H4 Label      | 1.25rem (20px)  | SemiBold (600)  | Display | Feature titles, stat labels   |
-| Body Large    | 1.125rem (18px) | Regular (400)   | Body    | Hero subtext, lead paragraphs |
-| Body          | 1rem (16px)     | Regular (400)   | Body    | Default body copy             |
-| Body Small    | 0.875rem (14px) | Regular (400)   | Body    | Captions, metadata            |
-| Caption       | 0.75rem (12px)  | Medium (500)    | Body    | Labels, fine print            |
+| Element              | Classes                                        | Usage                                      |
+| -------------------- | ---------------------------------------------- | ------------------------------------------ |
+| H1 Hero              | `text-4xl md:text-6xl lg:text-7xl font-extrabold` | Hero headline only                         |
+| H2 Section Title     | `text-3xl md:text-4xl font-bold text-navy`     | All section headings (consistent everywhere) |
+| H3 Card/Step Title   | `text-xl font-bold text-navy`                  | FeatureGrid cards, StepsOverview steps     |
+| Subheadline          | `text-lg text-gray-500`                        | Below section h2, no font-weight override  |
+| Eyebrow Label        | `text-sm font-semibold uppercase tracking-widest text-blue-500` | QuickFacts "By the Numbers"    |
+| Body Large           | `text-lg leading-relaxed`                      | Hero body, guarantee body, CTA body        |
+| Body                 | `text-sm leading-relaxed`                      | Card descriptions, step descriptions       |
+| Body Small           | `text-xs`                                      | Source citations, context text             |
 
-### Headlines
+### Buttons (`src/components/ui/Button.tsx`)
 
-- Use `font-display` (Plus Jakarta Sans) for ALL headings (h1–h4)
-- Letter spacing: `-0.02em` on headlines
-- Line height: `1.1–1.2` on headlines
+Five variants via a single component. All share: `inline-flex items-center justify-center font-bold font-body transition-all duration-300 ease-out`.
 
-### Body Text
-
-- Use `font-body` (DM Sans) for all body text, UI elements, navigation
-- Line height: `1.6–1.7` for body paragraphs (long-form readability)
-- Line height: `1.4` for UI text (buttons, labels, nav)
-
-### Buttons
-
-**Primary CTA:**
-
+**Primary (light backgrounds):**
 ```
-bg-amber hover:bg-amber-hover text-white font-bold
-px-8 py-3.5 rounded-lg
-shadow-[0_2px_8px_rgba(245,158,11,0.3)]
-hover:shadow-[0_4px_12px_rgba(245,158,11,0.4)]
-transition-all duration-200
+bg-blue-500 text-white px-8 py-3.5 rounded-lg shadow-sm
+hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)]
 ```
 
-**Secondary:**
-
+**Primary Dark (dark/navy backgrounds):**
 ```
-border-2 border-blue-500 text-blue-500 font-bold
-px-8 py-3.5 rounded-lg
+bg-white text-navy px-8 py-3.5 rounded-lg shadow-sm
+hover:bg-white/95 hover:shadow-[0_4px_16px_rgba(255,255,255,0.25)]
+```
+
+**Secondary / Outline (light backgrounds):**
+```
+border-2 border-blue-500 text-blue-500 px-8 py-3.5 rounded-lg
 hover:bg-blue-500 hover:text-white
-transition-all duration-200
+```
+
+**Outline Dark (dark/navy backgrounds — used for navbar CTA):**
+```
+border-2 border-white text-white px-8 py-3.5 rounded-lg
+hover:bg-white hover:text-navy
 ```
 
 **Text Link:**
+```
+text-blue-500 font-semibold
+```
+Uses `.btn-text-link` CSS class for underline slide-in from left via `::after` pseudo-element.
 
+```tsx
+<Button variant="primary">Start Learning Now</Button>
+<Button variant="primary-dark">Start Learning Now</Button>
+<Button variant="secondary" href="/faq">See All FAQs →</Button>
+<Button variant="outline-dark">Get Started</Button>
+<Button variant="text" href="/faq">See All FAQs →</Button>
 ```
-text-blue-500 font-semibold hover:text-navy hover:underline
-```
+
+**Important:** No `hover:scale` or `active:scale` on any buttons. Hover effects use glow shadows and color fills only.
 
 ### Cards
 
 ```
 bg-white border border-gray-200 rounded-xl p-6
-shadow-sm hover:shadow-md transition-shadow duration-200
+shadow-sm
 ```
 
-- Icon container: `w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center`
+- Hover (after entrance animation): `hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg transition-all duration-300 ease-out`
+- Requires `translate-y-0` base state so browser knows the transition starting point
+- Icon container: `w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center` (icons at size={24})
 - Equal height in grids: use `grid` with `items-stretch`
+- **Important:** Cards using `fadeUp()` inline styles must implement the `entranceDone` pattern (see Animation Patterns below) for hover effects to work
 
 ### Spacing
 
-- Between major page sections: `py-16` (64px) desktop, `py-12` mobile
-- Hero vertical padding: `py-24` (96px)
-- Between content blocks within a section: `space-y-8` (32px)
-- Card grid gaps: `gap-6` (24px)
-- Max content width: `max-w-7xl mx-auto` (1280px)
-- Side padding: `px-6` mobile, `px-10` tablet, `px-16` desktop
+- Between major page sections: `py-20 md:py-24` (consistent across ALL sections except Hero)
+- Hero: `min-h-[calc(100svh-4rem)]` flex layout, content centered via `flex-1 items-center`, metrics pinned to bottom
+- Between section heading and content: `mt-12`
+- Card grid gaps: `gap-6`
+- Max content width: `max-w-7xl mx-auto` (1280px) — except centered sections (Guarantee, FAQ, BottomCta) use `max-w-3xl`
+- Side padding: `px-6` mobile, `md:px-10` tablet, `lg:px-16` desktop
+- Navbar: `max-w-[1440px] px-8 lg:px-12 py-5`
 
 ### Shadows
 
-- `shadow-sm`: Default card resting state
-- `shadow-md`: Elevated cards, dropdowns
-- `shadow-lg`: Modals, hover-lift
-- CTA glow: `shadow-[0_2px_8px_rgba(245,158,11,0.3)]`
+- `shadow-sm`: Default card/element resting state
+- `shadow-lg`: Card hover-lift state, elevated dropdowns
+- `shadow-xl`: Navbar dropdown
+- `shadow-[0_4px_16px_rgba(...)]`: Custom glow shadows on button hover
 
 ---
 
-## Project Structure
+## Project Structure (actual files)
 
 ```
 testprep4u-site/
 ├── public/
-│   ├── images/
-│   │   ├── logo.png
-│   │   ├── logo-white.png
-│   │   └── hero/
-│   └── favicon.ico
+│   └── assets/
+│       └── testprep4u-logo-light.svg     # SVG logo (light/white version for nav)
 ├── src/
 │   ├── app/
-│   │   ├── globals.css                   # Tailwind v4 @theme config + global styles
-│   │   ├── layout.tsx                    # Root layout (fonts, nav, footer)
-│   │   ├── page.tsx                      # Homepage
-│   │   ├── how-to-get-your-insurance-license/
-│   │   │   └── page.tsx                  # Process page
-│   │   ├── life-insurance-exam-prep/
-│   │   │   └── page.tsx
-│   │   ├── health-insurance-exam-prep/
-│   │   │   └── page.tsx
-│   │   ├── life-and-health-insurance-exam-prep/
-│   │   │   └── page.tsx
-│   │   ├── states/
-│   │   │   └── [state]/
-│   │   │       └── page.tsx              # Dynamic state pages
-│   │   ├── faq/
-│   │   │   └── page.tsx
-│   │   ├── about/
-│   │   │   └── page.tsx
-│   │   ├── contact/
-│   │   │   └── page.tsx
-│   │   └── pricing/
-│   │       └── page.tsx                  # 3-tier pricing comparison
+│   │   ├── globals.css                    # Tailwind v4 @theme + global styles + CSS animations
+│   │   ├── layout.tsx                     # Root layout (fonts, Navbar, Footer)
+│   │   ├── page.tsx                       # Homepage (composes section components)
+│   │   └── favicon.ico
 │   ├── components/
 │   │   ├── layout/
-│   │   │   ├── Navbar.tsx                # Sticky nav with CTA
-│   │   │   └── Footer.tsx
+│   │   │   ├── Navbar.tsx                 # Sticky nav, SVG logo, hover dropdown, scroll effect
+│   │   │   └── Footer.tsx                 # 4-column footer, navy bg
 │   │   ├── ui/
-│   │   │   ├── Button.tsx                # Primary, Secondary, Text variants
-│   │   │   ├── Card.tsx                  # Feature card component
-│   │   │   ├── MetricStrip.tsx           # 3-col stat callout strip
-│   │   │   ├── Accordion.tsx             # FAQ accordion
-│   │   │   ├── StateSelector.tsx         # Map or dropdown for state selection
-│   │   │   ├── PricingCards.tsx           # 3-tier pricing cards with course toggle
-│   │   │   ├── ExamTable.tsx             # Exam section weights table
-│   │   │   └── DonutChart.tsx            # Exam weight visualization
-│   │   ├── sections/
-│   │   │   ├── Hero.tsx                  # Homepage hero
-│   │   │   ├── FeatureGrid.tsx           # 3x2 TestPrep4U Difference cards
-│   │   │   ├── StepsOverview.tsx         # 3-step or 6-step roadmap
-│   │   │   ├── Guarantee.tsx             # Pass guarantee section
-│   │   │   ├── WhyNow.tsx               # Market opportunity section
-│   │   │   ├── QuickFacts.tsx            # 3x2 metric grid
-│   │   │   ├── CourseCards.tsx           # Life / Health / Combined cards
-│   │   │   └── PricingSection.tsx       # Full pricing section with toggle + cards
-│   │   └── seo/
-│   │       └── JsonLd.tsx                # JSON-LD structured data (FAQ, Course)
-│   ├── lib/
-│   │   ├── constants.ts                  # Site-wide constants (stats, URLs)
-│   │   ├── pricing.ts                    # Pricing tiers, features, per-course prices
-│   │   └── states.ts                     # State data (name, slug, hours, requirements)
+│   │   │   ├── Button.tsx                 # 5 variants (primary, primary-dark, secondary, outline-dark, text)
+│   │   │   ├── CountUp.tsx                # Animated number count-up (easeOutCubic, skips ranges)
+│   │   │   └── MetricStrip.tsx            # 3-col stat strip (standalone, used on future pages)
+│   │   └── sections/
+│   │       ├── Hero.tsx                   # Full-viewport hero + integrated metric strip
+│   │       ├── FeatureGrid.tsx            # 3x2 card grid with entranceDone hover pattern
+│   │       ├── StepsOverview.tsx          # 3-column steps with large decorative numbers
+│   │       ├── Guarantee.tsx              # Full-width gradient section with shield icon
+│   │       ├── QuickFacts.tsx             # Two-column: stat rows (left) + image placeholder (right)
+│   │       ├── FaqPreview.tsx             # Controlled accordion with CSS grid animation
+│   │       └── BottomCta.tsx              # Navy CTA section
+│   ├── hooks/
+│   │   ├── useInView.ts                   # IntersectionObserver hook (fires once by default)
+│   │   └── useScrolled.ts                 # Scroll threshold detection hook
+│   └── lib/
+│       ├── animations.ts                  # fadeUp() and slideLeft() transition style helpers
+│       ├── constants.ts                   # STATS, SITE, NAV_LINKS, FOOTER_LINKS
+│       ├── content.ts                     # All marketing copy organized by page
+│       └── pricing.ts                     # PRICING_TIERS data structure
 ├── next.config.ts
 ├── postcss.config.mjs
 ├── tsconfig.json
 ├── package.json
 └── CLAUDE.md
 ```
+
+---
+
+## Animation Patterns
+
+All scroll-triggered animations use `useInView` hook + inline `style` props from `src/lib/animations.ts`.
+
+### fadeUp(visible, delay)
+
+Fades in and rises 16px. Duration 0.6s ease-out. Used on all section content.
+
+```tsx
+import { useInView } from "@/hooks/useInView";
+import { fadeUp } from "@/lib/animations";
+
+const { ref, isInView } = useInView<HTMLDivElement>({ threshold: 0.1 });
+
+<div ref={ref}>
+  <h2 style={fadeUp(isInView, 0)}>Headline</h2>       {/* appears first */}
+  <p style={fadeUp(isInView, 150)}>Subheadline</p>     {/* 150ms delay */}
+  <div style={fadeUp(isInView, 150 + i * 100)}>Card</div> {/* staggered */}
+</div>
+```
+
+### slideLeft(visible, delay)
+
+Slides in 20px from left and fades in. Duration 0.5s ease-out. Used on Hero metric strip items.
+
+### Stagger pattern (standardized)
+
+- Section heading: delay `0`
+- Subheadline: delay `150`
+- Grid items: delay `150 + i * 100` (consistent across FeatureGrid, StepsOverview, QuickFacts)
+- CTA below grid: delay `650`
+
+### entranceDone Pattern (required for cards with hover effects)
+
+Inline `fadeUp()` styles have higher CSS specificity than Tailwind hover utilities. To fix: after the entrance animation completes, clear inline styles so Tailwind hover classes take effect.
+
+```tsx
+const [entranceDone, setEntranceDone] = useState(false);
+
+useEffect(() => {
+  if (isInView && !entranceDone) {
+    const timer = setTimeout(() => setEntranceDone(true), 1300);
+    return () => clearTimeout(timer);
+  }
+}, [isInView, entranceDone]);
+
+// On the card element:
+className={entranceDone
+  ? "translate-y-0 ... hover:-translate-y-1 hover:shadow-lg transition-all duration-300 ease-out"
+  : "..."}
+style={entranceDone ? undefined : fadeUp(isInView, 150 + i * 100)}
+```
+
+### CountUp Component
+
+Animates numbers from 0 to target. Skips ranges containing en-dash/hyphen (e.g., "20–60 hrs" renders instantly). easeOutCubic easing, 1200ms default duration.
+
+```tsx
+<CountUp value="57.9%" trigger={isInView} />
+<CountUp value="70%" trigger={isInView} />
+<CountUp value="20–60 hrs" trigger={isInView} />  {/* renders instantly, no animation */}
+```
+
+### CSS Animations (in globals.css)
+
+- `.nav-link::after` — Blue-500 underline slides in via `scaleX(0)` → `scaleX(1)`, transform-origin left, 300ms ease
+- `.nav-dropdown` — Fade-in + slide-down keyframe animation, 200ms ease-out
+- `.faq-answer` / `.faq-answer.open` — CSS `grid-template-rows: 0fr → 1fr` with opacity, 300ms ease
+- `.btn-text-link::after` — Underline width 0 → 100%, 300ms ease
+
+---
+
+## Homepage Section Flow
+
+The homepage renders these sections in order. Background colors alternate for visual separation:
+
+| # | Section          | Background                                    | Layout            |
+|---|------------------|-----------------------------------------------|-------------------|
+| 1 | Hero             | `bg-navy` (full viewport)                     | Left-aligned, metrics pinned to bottom |
+| 2 | FeatureGrid      | white (implicit)                              | Centered header, 3x2 card grid |
+| 3 | StepsOverview    | `bg-gray-50`                                  | Centered header, 3-col with decorative numbers |
+| 4 | Guarantee        | `bg-gradient-to-br from-navy via-[#003d6b] to-blue-500` | Centered, narrow max-w-3xl |
+| 5 | QuickFacts       | white                                         | Left-aligned header, 2-col (stats + image) |
+| 6 | FaqPreview       | `bg-gray-50`                                  | Centered, narrow max-w-3xl, accordion |
+| 7 | BottomCta        | `bg-navy`                                     | Centered, narrow max-w-3xl |
+| 8 | Footer           | `bg-navy` + `border-t border-white/10`        | 4-column grid |
+
+---
+
+## Component Patterns
+
+### Navbar (`src/components/layout/Navbar.tsx`)
+
+- `'use client'` — uses `usePathname()`, `useScrolled()`, hover state
+- SVG logo via `next/image` from `/public/assets/testprep4u-logo-light.svg` (160×34)
+- Desktop links: `text-blue-100` default, `hover:text-white`, active page gets `.active` class (blue-500 underline via CSS)
+- Courses dropdown: CSS `group-hover` based (not click), navy bg with `border-white/10`, invisible bridge div prevents close gap
+- CTA: `Button variant="outline-dark" className="!px-5 !py-2 text-sm"` — `!important` needed to override variant's baked-in `py-3.5`
+- Scroll effect: `bg-navy/95 backdrop-blur-md shadow-lg shadow-black/10` when scrolled past 50px
+- Mobile: hamburger toggle, full-width menu with `border-t border-white/10`
+
+### Hero (`src/components/sections/Hero.tsx`)
+
+- `'use client'` — uses `useState` for mount animation, `useInView` for metrics
+- Full viewport: `min-h-[calc(100svh-4rem)] flex flex-col bg-navy`
+- Content vertically centered via `flex-1 items-center`
+- Metric strip pinned to bottom with `border-t border-white/10`
+- Hero content uses `fadeUp(mounted, delay)` triggered on mount (not scroll)
+- Metrics use `slideLeft(metricsVisible, i * 200)` triggered by scroll
+- Metric items: `border-l-4 border-blue-500 pl-5`, numbers in white, labels in `gray-300`
+- Two CTAs: `primary-dark` + `outline-dark`
+
+### FeatureGrid (`src/components/sections/FeatureGrid.tsx`)
+
+- `'use client'` — uses `useInView`, `entranceDone` state for hover
+- 6 cards in 3x2 grid (`md:grid-cols-2 lg:grid-cols-3`)
+- Icons: `[Monitor, MapPin, GraduationCap, BrainCircuit, Users, Target]` from Lucide
+- Bullets use `Check` icon in `text-blue-500`
+- Card content from `homePage.featureGrid.cards` in content.ts
+- Uses `entranceDone` pattern — hover effects only work after 1300ms
+
+### StepsOverview (`src/components/sections/StepsOverview.tsx`)
+
+- `'use client'` — uses `useInView`
+- 3-column grid on desktop
+- Large decorative numbers: `text-7xl font-extrabold text-blue-200` formatted as "01", "02", "03"
+- Step title and description below each number, left-aligned
+- CTA: `Button variant="secondary"`
+
+### Guarantee (`src/components/sections/Guarantee.tsx`)
+
+- `'use client'` — uses `useInView`
+- Full-width gradient: `bg-gradient-to-br from-navy via-[#003d6b] to-blue-500`
+- Decorative blurred orbs for depth (absolute positioned, `blur-3xl`)
+- Centered layout with `max-w-3xl`
+- ShieldCheck icon (size={40}) in frosted circle (`bg-white/10 ring-2 ring-white/20`)
+- CTA: `Button variant="primary-dark"`
+
+### QuickFacts (`src/components/sections/QuickFacts.tsx`)
+
+- `'use client'` — uses `useInView`, `CountUp`
+- Two-column layout: stats (55%) + image placeholder (45%)
+- Eyebrow label: "By the Numbers" in `text-blue-500 uppercase tracking-widest`
+- Left-aligned header (different from other centered sections)
+- Stat rows: vertical accent bar (`w-1 h-10 bg-blue-500/30`, `group-hover:bg-blue-500`), number in navy, label in `gray-800`, context in `gray-500`
+- Rows separated by `border-b border-gray-100`
+- Image placeholder: `rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 ring-1 ring-gray-200/60`, stretches full height via `lg:items-stretch`
+
+### FaqPreview (`src/components/sections/FaqPreview.tsx`)
+
+- `'use client'` — uses `useState` for controlled accordion, `useInView`
+- 7 FAQ items from `homePage.faqPreview.items` in content.ts
+- Controlled React accordion (NOT native `<details>`) — single open at a time
+- Animation: CSS `grid-template-rows: 0fr → 1fr` via `.faq-answer` / `.faq-answer.open` classes
+- Plus icon rotates 45° to become × when open (`rotate-45`, `duration-300`)
+- Questions: `font-display text-base font-bold text-navy`
+- Answers: `font-body text-sm leading-relaxed text-gray-600`
+- Closed items: `hover:bg-gray-50`
+- Items: `rounded-lg border border-gray-200 bg-white shadow-sm`, gap `gap-2.5`
+- CTA: `Button variant="secondary"`
+
+### BottomCta (`src/components/sections/BottomCta.tsx`)
+
+- `'use client'` — uses `useInView`
+- Navy background, centered text, `max-w-3xl`
+- Headline in white, body in `text-blue-100`
+- CTA: `Button variant="primary-dark"`
+
+### Footer (`src/components/layout/Footer.tsx`)
+
+- Server Component (no `'use client'`)
+- Navy bg with `border-t border-white/10` (separates from BottomCta)
+- 4-column grid: Brand, Courses, Company, Resources
+- Links: `text-blue-100 hover:text-white`
+- Column headers: `text-gray-300 uppercase tracking-wider`
+- Brand text logo (not SVG) in footer: `font-display text-2xl font-extrabold`
+
+### MetricStrip (`src/components/ui/MetricStrip.tsx`)
+
+Standalone reusable component for use on future pages (process page, course pages). Not used on the homepage — the hero has its own integrated metrics. Accepts `items` prop with `value`, `label`, `source`, `tone`.
 
 ---
 
@@ -325,76 +507,15 @@ This is an SEO-first site. Every page must be built with search visibility as a 
 
 ---
 
-## Component Patterns
-
-### MetricStrip
-
-Reusable 3-column stat display used on homepage, process page, courses page, and quick facts.
-
-```tsx
-<MetricStrip
-  items={[
-    {
-      value: "57.9%",
-      label: "National First-Time Pass Rate",
-      source: "NAIC 2020",
-      tone: "warning",
-    },
-    { value: "TBD%", label: "TestPrep4U Pass Rate", tone: "success" },
-    { value: "80%+", label: "Target Practice Score", tone: "brand" },
-  ]}
-/>
-```
-
-- `tone` controls accent color: `warning` = amber border, `success` = green, `brand` = blue-500
-- High-contrast background (navy or gray-900)
-- Large number, bold label, optional source/context line
-
-### Accordion (FAQ)
-
-- All content rendered in HTML source (not hidden behind JS for SEO)
-- `details`/`summary` native HTML elements with progressive enhancement
-- Smooth open/close animation via CSS `grid-template-rows` trick
-- JSON-LD `FAQPage` schema generated from same data source
-
-### Button
-
-Three variants via a single component:
-
-```tsx
-<Button variant="primary">Start Learning Now</Button>    // Amber CTA
-<Button variant="secondary">See the Full Roadmap</Button> // Blue outline
-<Button variant="text" href="/faq">See All FAQs →</Button> // Text link
-```
-
-### PricingCards
-
-3-column tier comparison used on `/pricing` and embedded (pre-filtered) on each course product page.
-
-- **Layout**: 3-column grid, Pro card visually elevated
-- **Pro card (highlighted)**: `bg-navy text-white scale-105 shadow-lg`, "Recommended" badge (amber), amber CTA button
-- **Essentials & Premium cards**: White bg, standard card style (`border border-gray-200 shadow-sm`), secondary CTA buttons
-- **Course type toggle** above cards: `Life | Health | Life & Health Combined` — updates prices client-side without page reload (`'use client'`)
-- Features not included in a tier shown grayed out with `X` icon (Lucide `X` in `text-gray-300`)
-- Each card shows: tier name, tagline, price, access duration, feature checklist, CTA button
-- On course product pages, pass `courseType` prop to pre-select the toggle and optionally hide it
-- Below the cards: "Enrolling a team?" callout strip linking to `/contact` (placeholder for future group/manager pricing in Phase 5)
-
-```tsx
-<PricingCards courseType="life" showToggle={true} />
-```
-
-### StateSelector
-
-- Dropdown (Phase 1) with option to upgrade to interactive map later
-- Links to `/states/[state]`
-- Only Florida is active in Phase 1; other states show "Coming Soon"
-
----
-
 ## Content Data
 
-### Key Stats (used across multiple pages)
+All marketing copy lives in `src/lib/content.ts`, organized by page (`homePage`, `processPage`, `aboutPage`, `faqPage`, `pricingPage`, `coursePage`). Shared data (metric strip, guarantee, quick facts) lives in `shared` export.
+
+Site-wide constants (stats, URLs, nav links) live in `src/lib/constants.ts`.
+
+Pricing tier data lives in `src/lib/pricing.ts`.
+
+### Key Stats (`src/lib/constants.ts`)
 
 ```ts
 export const STATS = {
@@ -455,8 +576,6 @@ Industry standard is a 3-tier model. ExamFX starts ~$170, Kaplan ~$120. TestPrep
 
 ### Pricing by Course Type
 
-Prices vary by course. Life and Health are the same price; Combined is ~$30–40 more.
-
 All prices below are **CLIENT ACTION REQUIRED — confirm exact amounts before build.**
 
 | Tier       | Life     | Health   | Combined  |
@@ -464,112 +583,6 @@ All prices below are **CLIENT ACTION REQUIRED — confirm exact amounts before b
 | Essentials | $TBD     | $TBD     | $TBD      |
 | Pro        | $TBD     | $TBD     | $TBD      |
 | Premium    | $TBD     | $TBD     | $TBD      |
-
-### Data Structure (`src/lib/pricing.ts`)
-
-```ts
-interface PricingTier {
-  slug: "essentials" | "pro" | "premium";
-  name: string;
-  tagline: string;
-  highlighted: boolean;
-  features: {
-    label: string;
-    included: boolean;
-  }[];
-  accessMonths: number;
-  hasGuarantee: boolean;
-  prices: {
-    life: number;     // CLIENT ACTION REQUIRED
-    health: number;   // CLIENT ACTION REQUIRED
-    combined: number; // CLIENT ACTION REQUIRED
-  };
-}
-
-export const PRICING_TIERS: PricingTier[] = [
-  {
-    slug: "essentials",
-    name: "Essentials",
-    tagline: "Get licensed.",
-    highlighted: false,
-    accessMonths: 6,
-    hasGuarantee: false,
-    prices: { life: 0, health: 0, combined: 0 }, // TBD
-    features: [
-      { label: "Pre-licensing course content", included: true },
-      { label: "Chapter quizzes", included: true },
-      { label: "3 full practice exams", included: true },
-      { label: "Progress tracking", included: true },
-      { label: "Completion certificate", included: true },
-      { label: "24/7 chat support", included: true },
-      { label: "Unlimited practice retakes", included: false },
-      { label: "AI-adaptive review", included: false },
-      { label: "Study guides (PDF)", included: false },
-      { label: "Digital flashcards", included: false },
-      { label: "Exam readiness predictor", included: false },
-      { label: "First-time pass guarantee", included: false },
-      { label: "Video instruction", included: false },
-      { label: "Priority support", included: false },
-      { label: "Printed study guide", included: false },
-      { label: "Live review sessions", included: false },
-    ],
-  },
-  {
-    slug: "pro",
-    name: "Pro",
-    tagline: "Pass the first time.",
-    highlighted: true,
-    accessMonths: 9,
-    hasGuarantee: true,
-    prices: { life: 0, health: 0, combined: 0 }, // TBD
-    features: [
-      { label: "Pre-licensing course content", included: true },
-      { label: "Chapter quizzes", included: true },
-      { label: "3 full practice exams", included: true },
-      { label: "Progress tracking", included: true },
-      { label: "Completion certificate", included: true },
-      { label: "24/7 chat support", included: true },
-      { label: "Unlimited practice retakes", included: true },
-      { label: "AI-adaptive review", included: true },
-      { label: "Study guides (PDF)", included: true },
-      { label: "Digital flashcards", included: true },
-      { label: "Exam readiness predictor", included: true },
-      { label: "First-time pass guarantee", included: true },
-      { label: "Video instruction", included: false },
-      { label: "Priority support", included: false },
-      { label: "Printed study guide", included: false },
-      { label: "Live review sessions", included: false },
-    ],
-  },
-  {
-    slug: "premium",
-    name: "Premium",
-    tagline: "The full advantage.",
-    highlighted: false,
-    accessMonths: 12,
-    hasGuarantee: true,
-    prices: { life: 0, health: 0, combined: 0 }, // TBD
-    features: [
-      { label: "Pre-licensing course content", included: true },
-      { label: "Chapter quizzes", included: true },
-      { label: "3 full practice exams", included: true },
-      { label: "Progress tracking", included: true },
-      { label: "Completion certificate", included: true },
-      { label: "24/7 chat support", included: true },
-      { label: "Unlimited practice retakes", included: true },
-      { label: "AI-adaptive review", included: true },
-      { label: "Study guides (PDF)", included: true },
-      { label: "Digital flashcards", included: true },
-      { label: "Exam readiness predictor", included: true },
-      { label: "First-time pass guarantee", included: true },
-      { label: "Video instruction", included: true },
-      { label: "Priority support", included: true },
-      { label: "Printed study guide", included: true },
-      { label: "Live review sessions", included: true },
-    ],
-  },
-];
-```
 
 ### Notes
 
@@ -600,12 +613,14 @@ export const PRICING_TIERS: PricingTier[] = [
 - Props interfaces defined above each component
 - Tailwind classes directly on elements — no CSS modules, no styled-components
 - Group Tailwind classes logically: layout → spacing → sizing → typography → colors → effects
+- `'use client'` only when component needs interactivity (hooks, state, event handlers)
 
 ### File Naming
 
 - Components: PascalCase (`FeatureGrid.tsx`)
 - Pages: `page.tsx` inside route directory (Next.js App Router convention)
 - Utilities/data: camelCase (`states.ts`, `constants.ts`)
+- Hooks: camelCase with `use` prefix (`useInView.ts`)
 
 ### Git
 
@@ -619,6 +634,9 @@ export const PRICING_TIERS: PricingTier[] = [
 
 - **Do NOT build auth, dashboards, or SCORM integration in Phase 1.** The architecture should be compatible but no auth code, no Supabase client, no protected routes yet.
 - **All copy comes from the client's content docs.** Do not rewrite or improvise marketing copy. Use the exact text provided by Jason Van Steenwyk. Annotations marked with ⚑ are client action items — use placeholder text where needed.
-- **The amber CTA color is reserved for primary action buttons only.** Do not use amber for decorative elements, icons, borders, or secondary actions.
+- **Amber is a semantic warning color only.** Do not use amber for buttons, CTAs, badges, or decorative elements. Primary CTAs use blue-500 (light bg) or white (dark bg).
 - **Server Components by default.** Only add `'use client'` when a component genuinely needs interactivity (accordion, mobile nav toggle, state selector dropdown). Keep the JS bundle minimal.
 - **Images are TBD.** Use proper `next/image` components with placeholder dimensions so images can be swapped in without layout shift.
+- **No hover:scale effects on buttons.** Use glow shadows and color transitions only.
+- **fadeUp inline styles override Tailwind hover.** Any component using `fadeUp()` that also needs hover effects MUST implement the `entranceDone` pattern to clear inline styles after animation.
+- **Navbar CTA padding requires `!important`.** The outline-dark variant has `py-3.5` baked in; the navbar overrides it with `!py-2`.

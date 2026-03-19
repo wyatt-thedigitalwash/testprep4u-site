@@ -1,26 +1,148 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Primary */
+  --color-navy: #003152;
+
+  /* Blue Scale */
+  --color-blue-100: #d8e5fd;
+  --color-blue-200: #b5cdfd;
+  --color-blue-300: #93b1f7;
+  --color-blue-400: #6a9af7;
+  --color-blue-500: #4680eb;
+  --color-blue-600: #3668C9;
+
+  /* Neutrals (Slate scale) */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  /* Semantic */
+  --color-success: #10b981;
+  --color-success-light: #d1fae5;
+  --color-error: #ef4444;
+  --color-error-light: #fee2e2;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fef3c7;
+  --color-info: #4680eb;
+  --color-info-light: #dbeafe;
+
+  /* Fonts */
+  --font-display: var(--font-jakarta), sans-serif;
+  --font-body: var(--font-dm), sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Smooth scroll only for in-page anchor links (e.g. #step-1) */
+html:has(:target) {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #ffffff;
+  color: var(--color-gray-700);
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* Text link — underline slides in from left */
+.btn-text-link {
+  position: relative;
+  text-decoration: none;
+  color: var(--color-blue-500);
+  transition: color 0.3s ease;
+}
+
+.btn-text-link::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--color-navy);
+  border-radius: 1px;
+  transition: width 0.3s ease;
+}
+
+.btn-text-link:hover {
+  color: var(--color-navy);
+}
+
+.btn-text-link:hover::after {
+  width: 100%;
+}
+
+/* Nav link — underline slides in from left on hover */
+.nav-link {
+  position: relative;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--color-blue-500);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+.nav-link.active::after {
+  transform: scaleX(1);
+}
+
+/* Nav dropdown fade-in/slide-down */
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.nav-dropdown {
+  animation: dropdown-in 0.2s ease-out;
+}
+
+/* FAQ accordion — CSS grid 0fr → 1fr for smooth expand */
+.faq-answer {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+.faq-answer.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.faq-answer > div {
+  overflow: hidden;
 }
