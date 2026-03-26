@@ -15,15 +15,15 @@ export function getStripe(): Stripe {
 // Populate these after creating products in the Stripe Dashboard.
 // Each key is "{tier}-{courseType}", e.g. "pro-life".
 export const STRIPE_PRICE_IDS: Record<string, string> = {
-  "essentials-life": "price_1TEwY6Dud8ZjhEeELhVF6vJO",
-  "pro-life": "price_1TEwZhDud8ZjhEeENZRHobFz",
-  "premium-life": "price_1TEwZhDud8ZjhEeE7lvrvNKv",
-  "essentials-health": "price_1TEwanDud8ZjhEeELi5OVceR",
-  "pro-health": "price_1TEwbUDud8ZjhEeEitlTnqJM",
-  "premium-health": "price_1TEwbUDud8ZjhEeEJf02ZOt2",
-  "essentials-combined": "price_1TEwbrDud8ZjhEeEGWSsQEKB",
-  "pro-combined": "price_1TEwcSDud8ZjhEeE5VaibXGB",
-  "premium-combined": "price_1TEwcSDud8ZjhEeE8bom4Ptb",
+  "essentials-life": "price_1TFHFmDpayTd63L242sqQPIQ",
+  "pro-life": "price_1TFHTTDpayTd63L2KP4CvRCX",
+  "premium-life": "price_1TFHTTDpayTd63L2qqQBXf8A",
+  "essentials-health": "price_1TFHGzDpayTd63L2GrHVjCZC",
+  "pro-health": "price_1TFHUCDpayTd63L2VSAMjZn7",
+  "premium-health": "price_1TFHUCDpayTd63L2nQOOYhix",
+  "essentials-combined": "price_1TFHHYDpayTd63L22KAIJrp6",
+  "pro-combined": "price_1TFHVDDpayTd63L2F85ZIAbG",
+  "premium-combined": "price_1TFHVDDpayTd63L2vdktgL3c",
 };
 
 export function getStripePriceId(

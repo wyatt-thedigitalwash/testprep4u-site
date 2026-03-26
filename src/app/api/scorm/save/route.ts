@@ -92,36 +92,42 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
 
-    // Fetch existing progress to accumulate time
-    const { data: existing } = await supabase
-      .from("module_progress")
-      .select("time_spent_seconds")
-      .eq("enrollment_id", enrollmentId)
-      .eq("module_id", moduleId)
-      .single();
+    // Only accumulate time on final save to avoid double-counting.
+    // Intermediate commits send the running session total, which would
+    // inflate the stored value if accumulated on every call.
+    let timeUpdate: number | undefined;
+    if (isFinal && sessionTimeSeconds && sessionTimeSeconds > 0) {
+      const { data: existing } = await supabase
+        .from("module_progress")
+        .select("time_spent_seconds")
+        .eq("enrollment_id", enrollmentId)
+        .eq("module_id", moduleId)
+        .single();
 
-    const existingTime = existing?.time_spent_seconds || 0;
-    const newTotalTime = existingTime + (sessionTimeSeconds || 0);
+      timeUpdate = (existing?.time_spent_seconds || 0) + sessionTimeSeconds;
+    }
+
+    // Build upsert payload — only include time_spent_seconds on final save
+    const upsertData: Record<string, unknown> = {
+      enrollment_id: enrollmentId,
+      module_id: moduleId,
+      status,
+      completion_status: dbCompletionStatus,
+      success_status: dbSuccessStatus,
+      score: score !== null && score >= 0 && score <= 100 ? score : null,
+      last_accessed: now,
+      bookmark: location || null,
+      completed_at: status === "completed" ? now : null,
+      cmi_data: cmiData || {},
+    };
+    if (timeUpdate !== undefined) {
+      upsertData.time_spent_seconds = timeUpdate;
+    }
 
     // Upsert module_progress
     const { error: upsertError } = await supabase
       .from("module_progress")
-      .upsert(
-        {
-          enrollment_id: enrollmentId,
-          module_id: moduleId,
-          status,
-          completion_status: dbCompletionStatus,
-          success_status: dbSuccessStatus,
-          score: score !== null && score >= 0 && score <= 100 ? score : null,
-          time_spent_seconds: newTotalTime,
-          last_accessed: now,
-          bookmark: location || null,
-          completed_at: status === "completed" ? now : null,
-          cmi_data: cmiData || {},
-        },
-        { onConflict: "enrollment_id,module_id" }
-      );
+      .upsert(upsertData, { onConflict: "enrollment_id,module_id" });
 
     if (upsertError) {
       console.error("SCORM progress upsert error:", upsertError);

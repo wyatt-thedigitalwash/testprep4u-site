@@ -66,6 +66,31 @@ export async function POST(request: Request) {
         );
       }
 
+      // Verify all lesson modules in this section are completed before allowing quiz
+      const { data: sectionModules } = await supabase
+        .from("course_modules")
+        .select("id")
+        .eq("section_id", section.id)
+        .eq("module_type", "lesson");
+
+      if (sectionModules && sectionModules.length > 0) {
+        const moduleIds = sectionModules.map((m) => m.id);
+        const { data: progressRows } = await supabase
+          .from("module_progress")
+          .select("module_id, status")
+          .eq("enrollment_id", enrollment.id)
+          .in("module_id", moduleIds)
+          .eq("status", "completed");
+
+        const completedCount = progressRows?.length || 0;
+        if (completedCount < moduleIds.length) {
+          return NextResponse.json(
+            { error: "Complete all section lessons before taking the quiz" },
+            { status: 403 }
+          );
+        }
+      }
+
       // Get lesson module titles — these are used as topic keys in question_bank
       const { data: modules } = await supabase
         .from("course_modules")
@@ -96,7 +121,30 @@ export async function POST(request: Request) {
 
       questions = questionData || [];
     } else {
-      // Practice or final exam — filter by exam_type
+      // Practice or final exam — verify all SCORM sections complete
+      const { data: allModules } = await supabase
+        .from("course_modules")
+        .select("id, course_sections!inner(course_id)")
+        .eq("course_sections.course_id", course.id);
+
+      if (allModules && allModules.length > 0) {
+        const allModuleIds = allModules.map((m) => m.id);
+        const { data: completedRows } = await supabase
+          .from("module_progress")
+          .select("module_id")
+          .eq("enrollment_id", enrollment.id)
+          .in("module_id", allModuleIds)
+          .eq("status", "completed");
+
+        if ((completedRows?.length || 0) < allModuleIds.length) {
+          return NextResponse.json(
+            { error: "Complete all course sections before taking this exam" },
+            { status: 403 }
+          );
+        }
+      }
+
+      // Filter by exam_type
       const examFilter =
         type === "final" ? ["final", "both"] : ["practice", "both"];
 

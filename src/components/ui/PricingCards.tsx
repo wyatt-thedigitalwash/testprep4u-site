@@ -139,27 +139,11 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardP
   useEffect(() => {
     if (autoCheckout && !autoCheckoutFired.current && price > 0) {
       autoCheckoutFired.current = true;
+      // Clear any stale localStorage fallback since URL params took over
+      try { localStorage.removeItem("pendingCheckout"); } catch {}
       handleCheckout();
     }
   }, [autoCheckout, price, handleCheckout]);
-
-  // localStorage fallback: if user lands on /pricing with pendingCheckout
-  // but no URL params, redirect to self with params
-  useEffect(() => {
-    if (autoCheckoutFired.current) return;
-    try {
-      const stored = localStorage.getItem("pendingCheckout");
-      if (!stored) return;
-      const { plan, course } = JSON.parse(stored);
-      if (plan === tier.slug && course === courseType) {
-        localStorage.removeItem("pendingCheckout");
-        autoCheckoutFired.current = true;
-        handleCheckout();
-      }
-    } catch {
-      // Ignore parse errors
-    }
-  }, [tier.slug, courseType, handleCheckout]);
 
   return (
     <div

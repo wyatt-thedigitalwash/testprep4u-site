@@ -33,6 +33,20 @@ export async function signup(
       emailRedirectTo,
     },
   });
+
+  // Supabase returns a user with empty identities (instead of an error)
+  // when the email already exists and email confirmation is enabled.
+  if (
+    !error &&
+    data.user &&
+    (!data.user.identities || data.user.identities.length === 0)
+  ) {
+    return {
+      user: null,
+      error: { message: "EMAIL_EXISTS" } as { message: string },
+    };
+  }
+
   return { user: data.user, error };
 }
 

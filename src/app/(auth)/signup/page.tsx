@@ -21,6 +21,7 @@ function SignupForm() {
   const [password, setPassword] = useState("");
   const [state, setState] = useState("");
   const [error, setError] = useState("");
+  const [emailExists, setEmailExists] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -58,7 +59,11 @@ function SignupForm() {
       redirectTo
     );
     if (authError) {
-      setError(authError.message);
+      if (authError.message === "EMAIL_EXISTS") {
+        setEmailExists(true);
+      } else {
+        setError(authError.message);
+      }
       setLoading(false);
     } else {
       setSuccess(true);
@@ -153,7 +158,10 @@ function SignupForm() {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailExists) setEmailExists(false);
+                  }}
                   className="mt-1 block w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   placeholder="you@example.com"
                 />
@@ -203,7 +211,19 @@ function SignupForm() {
                 </select>
               </div>
 
-              {error && (
+              {emailExists && (
+                <div className="rounded-lg bg-error-light px-4 py-3 text-sm text-error">
+                  An account with this email already exists.{" "}
+                  <Link
+                    href={`/login${planParams}`}
+                    className="font-medium underline hover:text-error/80"
+                  >
+                    Sign in instead
+                  </Link>
+                </div>
+              )}
+
+              {error && !emailExists && (
                 <div className="rounded-lg bg-error-light px-4 py-3 text-sm text-error">
                   {error}
                 </div>
@@ -240,7 +260,7 @@ function SignupForm() {
 export default function SignupPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-6">
-      <Suspense>
+      <Suspense fallback={<div className="w-full max-w-md animate-pulse space-y-4"><div className="h-10 rounded bg-gray-200" /><div className="h-96 rounded-xl bg-gray-200" /></div>}>
         <SignupForm />
       </Suspense>
     </div>

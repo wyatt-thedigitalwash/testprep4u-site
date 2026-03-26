@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Download, Loader2 } from "lucide-react";
 
 interface CertificateActionsProps {
@@ -12,6 +13,7 @@ export function CertificateActions({
   enrollmentId,
   hasExistingCertificate,
 }: CertificateActionsProps) {
+  const router = useRouter();
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [generated, setGenerated] = useState(hasExistingCertificate);
@@ -34,8 +36,8 @@ export function CertificateActions({
       }
 
       setGenerated(true);
-      // Reload to show updated certificate info
-      window.location.reload();
+      // Refresh server data to show updated certificate info
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setGenerating(false);

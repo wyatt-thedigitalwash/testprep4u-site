@@ -163,7 +163,8 @@ export async function getUserEnrollments(): Promise<CourseEnrollment[]> {
     `
     )
     .eq("user_id", user.id)
-    .eq("status", "active");
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString());
 
   if (error || !data) return [];
 
@@ -219,6 +220,7 @@ export async function getCourseDetail(
     .eq("user_id", user.id)
     .eq("course_id", course.id)
     .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
     .single();
 
   if (!enrollment) return null;
@@ -387,7 +389,7 @@ export async function getCourseDetail(
     return s.modules.every((m) => m.progress?.status === "completed");
   });
   const hasAffidavit = !!enrollment.affidavit_accepted_at;
-  const canTakeFinalExam = allSectionsComplete && meetsHourRequirement;
+  const canTakeFinalExam = allSectionsComplete;
   const canGetCertificate = finalExamPassed && meetsHourRequirement && hasAffidavit;
 
   const progressPercent =
@@ -446,6 +448,7 @@ export async function getExamAttempts(
     .eq("user_id", user.id)
     .eq("course_id", course.id)
     .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
     .single();
   if (!enrollment) return [];
 
