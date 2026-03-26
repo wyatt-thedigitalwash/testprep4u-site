@@ -267,6 +267,10 @@ All tables use Row Level Security (RLS). Users can only read/write their own dat
 | expires_at | timestamptz | based on plan tier (6/9/12 months) |
 | completed_at | timestamptz | nullable, set on course completion |
 | affidavit_accepted_at | timestamptz | nullable, when student signed self-study affidavit |
+| affidavit_ip | text | nullable, IP address at time of signing |
+| affidavit_user_agent | text | nullable, browser user-agent at time of signing |
+| affidavit_typed_name | text | nullable, name typed by student to sign |
+| stripe_session_id | text | nullable, Stripe Checkout session ID for idempotency (unique where not null) |
 
 **module_progress**
 | Column | Type | Notes |

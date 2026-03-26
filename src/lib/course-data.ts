@@ -142,12 +142,20 @@ export async function getUserEnrollments(): Promise<CourseEnrollment[]> {
   } = await supabase.auth.getUser();
   if (!user) return [];
 
+  // Fetch user's plan tier from profiles (tier lives on profiles, not enrollments)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("plan_tier")
+    .eq("id", user.id)
+    .single();
+
+  const tier = profile?.plan_tier || "essentials";
+
   const { data, error } = await supabase
     .from("enrollments")
     .select(
       `
       id,
-      tier,
       status,
       enrolled_at,
       expires_at,
@@ -163,10 +171,28 @@ export async function getUserEnrollments(): Promise<CourseEnrollment[]> {
     `
     )
     .eq("user_id", user.id)
-    .eq("status", "active")
+    .in("status", ["active", "completed"])
     .gt("expires_at", new Date().toISOString());
 
-  if (error || !data) return [];
+  if (error || !data) {
+    console.error("getUserEnrollments query error:", error);
+    return [];
+  }
+
+  // Check which enrollments have any module progress (i.e., have been started)
+  const enrollmentIds = data.map((row) => row.id);
+  const startedSet = new Set<string>();
+  if (enrollmentIds.length > 0) {
+    const { data: progressRows } = await supabase
+      .from("module_progress")
+      .select("enrollment_id")
+      .in("enrollment_id", enrollmentIds)
+      .limit(enrollmentIds.length);
+
+    for (const r of progressRows || []) {
+      startedSet.add(r.enrollment_id);
+    }
+  }
 
   return data.map((row) => {
     const course = row.courses as unknown as {
@@ -185,11 +211,12 @@ export async function getUserEnrollments(): Promise<CourseEnrollment[]> {
       courseType: course.type,
       courseState: course.state,
       requiredHours: course.required_hours,
-      tier: row.tier,
+      tier,
       status: row.status,
       enrolledAt: row.enrolled_at,
       expiresAt: row.expires_at,
       affidavitAcceptedAt: row.affidavit_accepted_at,
+      hasStarted: startedSet.has(row.id),
     };
   });
 }
@@ -213,17 +240,25 @@ export async function getCourseDetail(
 
   if (!course) return null;
 
-  // 2. Get enrollment
+  // 2. Get enrollment (tier lives on profiles, not enrollments)
   const { data: enrollment } = await supabase
     .from("enrollments")
-    .select("id, tier, status, enrolled_at, expires_at, affidavit_accepted_at")
+    .select("id, status, enrolled_at, expires_at, affidavit_accepted_at")
     .eq("user_id", user.id)
     .eq("course_id", course.id)
-    .eq("status", "active")
+    .in("status", ["active", "completed"])
     .gt("expires_at", new Date().toISOString())
     .single();
 
   if (!enrollment) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("plan_tier")
+    .eq("id", user.id)
+    .single();
+
+  const tier = profile?.plan_tier || "essentials";
 
   // 3. Get sections with modules
   const { data: sectionsRaw } = await supabase
@@ -404,11 +439,12 @@ export async function getCourseDetail(
       courseType: course.type,
       courseState: course.state,
       requiredHours: course.required_hours,
-      tier: enrollment.tier,
+      tier,
       status: enrollment.status,
       enrolledAt: enrollment.enrolled_at,
       expiresAt: enrollment.expires_at,
       affidavitAcceptedAt: enrollment.affidavit_accepted_at,
+      hasStarted: completedModules > 0,
     },
     sections: sectionsWithProgress,
     totalTimeSeconds,
@@ -447,7 +483,7 @@ export async function getExamAttempts(
     .select("id")
     .eq("user_id", user.id)
     .eq("course_id", course.id)
-    .eq("status", "active")
+    .in("status", ["active", "completed"])
     .gt("expires_at", new Date().toISOString())
     .single();
   if (!enrollment) return [];
@@ -472,6 +508,65 @@ export async function getExamAttempts(
   }));
 }
 
+/** Check which enrollments have all course sections completed (batch) */
+export async function checkAllSectionsComplete(
+  enrollments: { enrollmentId: string; courseId: string }[]
+): Promise<Map<string, boolean>> {
+  if (enrollments.length === 0) return new Map();
+
+  const supabase = await createServerSupabaseClient();
+
+  // Get all modules for all relevant courses
+  const uniqueCourseIds = [...new Set(enrollments.map((e) => e.courseId))];
+  const { data: allModules } = await supabase
+    .from("course_modules")
+    .select("id, course_sections!inner(course_id)")
+    .in("course_sections.course_id", uniqueCourseIds);
+
+  // Build courseId → module ID set
+  const courseModuleMap = new Map<string, Set<string>>();
+  for (const m of allModules || []) {
+    const courseId = (
+      m.course_sections as unknown as { course_id: string }
+    ).course_id;
+    if (!courseModuleMap.has(courseId))
+      courseModuleMap.set(courseId, new Set());
+    courseModuleMap.get(courseId)!.add(m.id);
+  }
+
+  // Get completed module_progress for all enrollments
+  const enrollmentIds = enrollments.map((e) => e.enrollmentId);
+  const { data: completedRows } = await supabase
+    .from("module_progress")
+    .select("enrollment_id, module_id")
+    .in("enrollment_id", enrollmentIds)
+    .eq("status", "completed");
+
+  const enrollmentCompleted = new Map<string, Set<string>>();
+  for (const r of completedRows || []) {
+    if (!enrollmentCompleted.has(r.enrollment_id))
+      enrollmentCompleted.set(r.enrollment_id, new Set());
+    enrollmentCompleted.get(r.enrollment_id)!.add(r.module_id);
+  }
+
+  // Compare totals
+  const result = new Map<string, boolean>();
+  for (const e of enrollments) {
+    const totalModules = courseModuleMap.get(e.courseId);
+    const completed = enrollmentCompleted.get(e.enrollmentId);
+    if (!totalModules || totalModules.size === 0) {
+      result.set(e.enrollmentId, true);
+    } else {
+      result.set(
+        e.enrollmentId,
+        (completed?.size || 0) >= totalModules.size
+      );
+    }
+  }
+
+  return result;
+}
+
 /** Get dashboard stats for the current user */
 export async function getDashboardStats(): Promise<{
   totalStudyHours: number;
@@ -484,19 +579,19 @@ export async function getDashboardStats(): Promise<{
   } = await supabase.auth.getUser();
   if (!user) return { totalStudyHours: 0, practiceExamAvg: 0, coursesEnrolled: 0 };
 
-  // Count enrollments
+  // Count enrollments (include completed so stats reflect full history)
   const { count: enrollmentCount } = await supabase
     .from("enrollments")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
-    .eq("status", "active");
+    .in("status", ["active", "completed"]);
 
   // Total study time across all enrollments
   const { data: enrollments } = await supabase
     .from("enrollments")
     .select("id")
     .eq("user_id", user.id)
-    .eq("status", "active");
+    .in("status", ["active", "completed"]);
 
   const enrollmentIds = (enrollments || []).map((e) => e.id);
   let totalSeconds = 0;

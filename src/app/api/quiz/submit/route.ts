@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/send-email";
 import { sectionCompletedEmail, finalExamPassedEmail } from "@/lib/emails";
 
@@ -33,11 +33,28 @@ export async function POST(request: Request) {
     const { type, courseId, sectionNumber, answers, timeSpentSeconds } =
       await request.json();
 
-    if (!type || !courseId || !answers?.length) {
+    // Validate type against allowed values
+    const ALLOWED_TYPES = ["section_quiz", "practice", "final"];
+    if (!type || !ALLOWED_TYPES.includes(type) || !courseId || !answers?.length) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    // Validate answer shape
+    for (const a of answers as unknown[]) {
+      if (
+        typeof a !== "object" ||
+        a === null ||
+        typeof (a as Record<string, unknown>).questionId !== "string" ||
+        typeof (a as Record<string, unknown>).selectedIndex !== "number"
+      ) {
+        return NextResponse.json(
+          { error: "Invalid answer format" },
+          { status: 400 }
+        );
+      }
     }
 
     // Look up course
@@ -68,8 +85,10 @@ export async function POST(request: Request) {
     }
 
     // Fetch full question data (including correct answers)
+    // Use admin client because question_bank RLS restricts to service_role
+    const adminClient = createAdminClient();
     const questionIds = (answers as AnswerInput[]).map((a) => a.questionId);
-    const { data: questions } = await supabase
+    const { data: questions } = await adminClient
       .from("question_bank")
       .select("id, question_text, options, correct_index, explanation, topic")
       .in("id", questionIds);
@@ -129,6 +148,15 @@ export async function POST(request: Request) {
       })
     );
 
+    // ── Cap time spent (4 hours max, same as SCORM save route) ──
+
+    const MAX_SESSION_SECONDS = 14400;
+    const rawTime =
+      typeof timeSpentSeconds === "number" && timeSpentSeconds > 0
+        ? timeSpentSeconds
+        : 0;
+    const cappedTime = Math.min(Math.floor(rawTime), MAX_SESSION_SECONDS);
+
     // ── Store results ────────────────────────────────────────
 
     if (type === "section_quiz" && sectionNumber !== undefined) {
@@ -149,17 +177,29 @@ export async function POST(request: Request) {
           .single();
 
         if (quizModule) {
+          // Fetch existing time to accumulate across retakes
+          const { data: existingQuizProgress } = await supabase
+            .from("module_progress")
+            .select("time_spent_seconds")
+            .eq("enrollment_id", enrollment.id)
+            .eq("module_id", quizModule.id)
+            .maybeSingle();
+
+          const accumulatedTime =
+            (existingQuizProgress?.time_spent_seconds || 0) + cappedTime;
+
           // Upsert module_progress for the quiz
+          // Only mark as completed if the quiz was passed
           await supabase.from("module_progress").upsert(
             {
               enrollment_id: enrollment.id,
               module_id: quizModule.id,
-              status: "completed",
-              completion_status: "completed",
+              status: passed ? "completed" : "in_progress",
+              completion_status: passed ? "completed" : "incomplete",
               success_status: passed ? "passed" : "failed",
               score,
-              time_spent_seconds: timeSpentSeconds || 0,
-              completed_at: new Date().toISOString(),
+              time_spent_seconds: accumulatedTime,
+              completed_at: passed ? new Date().toISOString() : null,
               last_accessed: new Date().toISOString(),
             },
             { onConflict: "enrollment_id,module_id" }
@@ -175,7 +215,7 @@ export async function POST(request: Request) {
         total_questions: totalQuestions,
         correct_answers: correctAnswers,
         passed,
-        time_spent_seconds: timeSpentSeconds || 0,
+        time_spent_seconds: cappedTime,
         answers,
       });
     }
@@ -254,22 +294,22 @@ export async function POST(request: Request) {
 
     // ── Log time (immutable audit trail) ─────────────────────
 
-    if (timeSpentSeconds && timeSpentSeconds > 0) {
+    if (cappedTime > 0) {
       const source =
         type === "final"
           ? "final_exam"
           : type === "practice"
             ? "practice_exam"
-            : "scorm"; // section quizzes log as 'scorm' (part of course flow)
+            : "quiz";
 
       await supabase.from("time_logs").insert({
         enrollment_id: enrollment.id,
         module_id: null,
         started_at: new Date(
-          Date.now() - timeSpentSeconds * 1000
+          Date.now() - cappedTime * 1000
         ).toISOString(),
         ended_at: new Date().toISOString(),
-        duration_seconds: timeSpentSeconds,
+        duration_seconds: cappedTime,
         source,
       });
     }

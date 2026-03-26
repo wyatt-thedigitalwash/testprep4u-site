@@ -51,8 +51,19 @@ export function ModuleLauncher({
   // Save progress to server
   const saveProgress = useCallback(
     async (sessionData: ScormSessionSummary, isFinal: boolean) => {
-      // Debounce — don't fire while another save is in flight
+      // If a save is in flight, skip intermediate saves but wait for final
       if (saveInFlightRef.current && !isFinal) return;
+      if (saveInFlightRef.current && isFinal) {
+        // Wait for the in-flight save to finish before sending the final save
+        await new Promise<void>((resolve) => {
+          const interval = setInterval(() => {
+            if (!saveInFlightRef.current) {
+              clearInterval(interval);
+              resolve();
+            }
+          }, 50);
+        });
+      }
       saveInFlightRef.current = true;
 
       const sessionSeconds = Math.round(
@@ -171,6 +182,33 @@ export function ModuleLauncher({
     router.push(`/dashboard/courses/${courseSlug}`);
   }, [courseSlug, router, saveProgress]);
 
+  // Save progress on tab close / browser back via sendBeacon
+  useEffect(() => {
+    function handleBeforeUnload() {
+      if (!apiRef.current) return;
+      const data = apiRef.current.getSessionSummary();
+      const sessionSeconds = Math.round(
+        (Date.now() - sessionStartRef.current) / 1000
+      );
+      const payload = JSON.stringify({
+        enrollmentId,
+        moduleId,
+        completionStatus: data.completionStatus,
+        successStatus: data.successStatus,
+        scoreRaw: data.scoreRaw || null,
+        scoreScaled: data.scoreScaled || null,
+        location: data.location || null,
+        suspendData: data.suspendData || null,
+        sessionTimeSeconds: sessionSeconds,
+        cmiData: data.allData,
+        isFinal: true,
+      });
+      navigator.sendBeacon("/api/scorm/save", payload);
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [enrollmentId, moduleId]);
+
   // Listen for close message from SCORM content
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
@@ -187,6 +225,8 @@ export function ModuleLauncher({
     router.refresh();
   }, [courseSlug, router]);
 
+  // TODO: Move SCORM packages to Supabase Storage and serve via signed URLs.
+  // Currently served from public/ directory — accessible without authentication.
   const iframeSrc = `/${scormEntryPath}`;
 
   // Session summary overlay

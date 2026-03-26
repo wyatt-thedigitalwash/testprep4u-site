@@ -21,8 +21,8 @@ export default async function AffidavitPage({ params }: Props) {
   const detail = await getCourseDetail(courseId);
   if (!detail) redirect("/dashboard");
 
-  // Must have passed final exam and met seat time to access affidavit
-  if (!detail.finalExamPassed || !detail.meetsHourRequirement) {
+  // Must have all sections complete, passed final exam, and met seat time
+  if (!detail.allSectionsComplete || !detail.finalExamPassed || !detail.meetsHourRequirement) {
     redirect(`/dashboard/courses/${courseId}`);
   }
 

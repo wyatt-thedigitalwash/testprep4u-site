@@ -37,7 +37,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages
-  if ((pathname === "/login" || pathname === "/signup") && user) {
+  if (
+    (pathname === "/login" ||
+      pathname === "/signup" ||
+      pathname === "/forgot-password") &&
+    user
+  ) {
     const plan = request.nextUrl.searchParams.get("plan");
     const course = request.nextUrl.searchParams.get("course");
     const url = request.nextUrl.clone();
@@ -58,5 +63,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/signup"],
+  matcher: ["/dashboard/:path*", "/login", "/signup", "/forgot-password", "/reset-password"],
 };

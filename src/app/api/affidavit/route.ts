@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
@@ -17,6 +17,13 @@ export async function POST(request: Request) {
     if (!enrollmentId || !typedName?.trim()) {
       return NextResponse.json(
         { error: "Missing enrollmentId or typedName" },
+        { status: 400 }
+      );
+    }
+
+    if (typedName.length > 200) {
+      return NextResponse.json(
+        { error: "typedName exceeds 200 character limit" },
         { status: 400 }
       );
     }
@@ -53,6 +60,41 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check all SCORM sections are completed and quizzes passed
+    const { data: allModules } = await supabase
+      .from("course_modules")
+      .select("id, module_type, course_sections!inner(course_id)")
+      .eq("course_sections.course_id", enrollment.course_id);
+
+    if (allModules && allModules.length > 0) {
+      const allModuleIds = allModules.map((m) => m.id);
+      const { data: progressRows } = await supabase
+        .from("module_progress")
+        .select("module_id, status, success_status")
+        .eq("enrollment_id", enrollmentId)
+        .in("module_id", allModuleIds);
+
+      const progressMap = new Map(
+        (progressRows || []).map((p) => [p.module_id, p])
+      );
+
+      for (const mod of allModules) {
+        const progress = progressMap.get(mod.id);
+        if (!progress || progress.status !== "completed") {
+          return NextResponse.json(
+            { error: "All course sections must be completed" },
+            { status: 403 }
+          );
+        }
+        if (mod.module_type === "quiz" && progress.success_status !== "passed") {
+          return NextResponse.json(
+            { error: "All section quizzes must be passed" },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // Check final exam passed
     const { data: examAttempts } = await supabase
       .from("exam_attempts")
@@ -87,7 +129,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Record affidavit
+    // Record affidavit (use admin client — enrollment updates restricted to service role)
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       request.headers.get("x-real-ip") ||
@@ -95,7 +137,8 @@ export async function POST(request: Request) {
     const userAgent = request.headers.get("user-agent") || "unknown";
     const now = new Date().toISOString();
 
-    const { error: updateError } = await supabase
+    const adminSupabase = createAdminClient();
+    const { error: updateError } = await adminSupabase
       .from("enrollments")
       .update({
         affidavit_accepted_at: now,

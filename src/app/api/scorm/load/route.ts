@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       )
       .eq("enrollment_id", enrollmentId)
       .eq("module_id", moduleId)
-      .single();
+      .maybeSingle();
 
     if (!progress) {
       // No previous progress — fresh start

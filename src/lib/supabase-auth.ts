@@ -87,3 +87,12 @@ export async function updatePassword(newPassword: string) {
   });
   return { error };
 }
+
+export async function resendConfirmation(email: string) {
+  const supabase = createClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+  });
+  return { error };
+}

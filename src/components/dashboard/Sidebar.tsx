@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpen,
+  FileQuestion,
   Settings,
   LogOut,
   X,
@@ -20,12 +22,14 @@ interface SidebarProps {
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Courses", href: "/dashboard/courses", icon: BookOpen },
+  { label: "Practice Exams", href: "/dashboard/exams", icon: FileQuestion },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   async function handleLogout() {
     await logout();
@@ -85,7 +89,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Logout */}
       <div className="border-t border-gray-200 px-3 py-4">
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutModal(true)}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-400 transition-colors hover:text-error"
         >
           <LogOut size={20} />
@@ -118,6 +122,34 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <aside className="hidden w-64 flex-shrink-0 border-r border-gray-200 bg-white lg:block">
         {sidebarContent}
       </aside>
+
+      {/* Logout confirmation modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="font-display text-lg font-semibold text-navy">
+              Log out?
+            </h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Are you sure you want to log out?
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 rounded-lg border-2 border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 rounded-lg bg-error px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-error/90"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

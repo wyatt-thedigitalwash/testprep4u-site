@@ -11,7 +11,7 @@ create table public.profiles (
   full_name text not null,
   state text not null,
   phone text,
-  plan_tier text not null check (plan_tier in ('essentials', 'pro', 'premium')),
+  plan_tier text check (plan_tier is null or plan_tier in ('essentials', 'pro', 'premium')),
   stripe_customer_id text,
   created_at timestamptz not null default now()
 );
@@ -26,10 +26,11 @@ create policy "Users can update own profile"
   on public.profiles for update
   using (auth.uid() = id);
 
--- Profile is created by a trigger, not by the user directly
-create policy "Service role can insert profiles"
+-- Profile is created by a SECURITY DEFINER trigger (service_role context),
+-- but restrict direct inserts to the user's own row as defense-in-depth.
+create policy "Users can only insert own profile"
   on public.profiles for insert
-  with check (true);
+  with check (auth.uid() = id);
 
 -- Auto-create profile row when a new user signs up
 create or replace function public.handle_new_user()
@@ -43,7 +44,7 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data ->> 'full_name', ''),
     coalesce(new.raw_user_meta_data ->> 'state', ''),
-    'essentials'
+    null
   );
   return new;
 end;
@@ -103,7 +104,7 @@ create policy "Users can read own enrollments"
 -- Enrollments are created by the Stripe webhook (service role), not by users
 create policy "Service role can insert enrollments"
   on public.enrollments for insert
-  with check (true);
+  with check (auth.role() = 'service_role');
 
 create policy "Service role can update enrollments"
   on public.enrollments for update
@@ -261,7 +262,7 @@ create policy "Users can read own certificates"
 -- Certificates are created server-side (service role) on course completion
 create policy "Service role can insert certificates"
   on public.certificates for insert
-  with check (true);
+  with check (auth.role() = 'service_role');
 
 -- ============================================================
 -- STORAGE BUCKETS

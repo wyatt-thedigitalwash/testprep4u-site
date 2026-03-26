@@ -1,21 +1,24 @@
-"use client";
+import { redirect } from "next/navigation";
+import { getCourseDetail } from "@/lib/course-data";
+import { FinalExamClient } from "./FinalExamClient";
 
-import { useParams, useRouter } from "next/navigation";
-import { QuizEngine } from "@/components/dashboard/QuizEngine";
+interface PageProps {
+  params: Promise<{ courseId: string }>;
+}
 
-export default function FinalExamPage() {
-  const { courseId } = useParams<{ courseId: string }>();
-  const router = useRouter();
+export default async function FinalExamPage({ params }: PageProps) {
+  const { courseId } = await params;
+  const detail = await getCourseDetail(courseId);
 
-  return (
-    <div className="mx-auto max-w-5xl py-4">
-      <QuizEngine
-        title="Final Exam"
-        courseId={courseId}
-        quizType="final"
-        passScore={70}
-        onExit={() => router.push(`/dashboard/courses/${courseId}`)}
-      />
-    </div>
-  );
+  // No enrollment or course not found → redirect
+  if (!detail) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  // Must have all sections complete to take final exam
+  if (!detail.canTakeFinalExam) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  return <FinalExamClient courseId={courseId} />;
 }

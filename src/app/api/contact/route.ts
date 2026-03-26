@@ -5,6 +5,18 @@ import {
   contactConfirmationEmail,
 } from "@/lib/emails";
 
+// In-memory rate limiter: email → timestamp of last submission
+const recentSubmissions = new Map<string, number>();
+const RATE_LIMIT_MS = 60_000; // 60 seconds between submissions per email
+
+// Cleanup stale entries every 5 minutes to prevent memory leaks
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_MS;
+  for (const [key, ts] of recentSubmissions) {
+    if (ts < cutoff) recentSubmissions.delete(key);
+  }
+}, 300_000);
+
 export async function POST(request: Request) {
   try {
     const { name, email, subject, message } = await request.json();
@@ -32,6 +44,17 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Rate limit: one submission per email per 60 seconds
+    const normalizedEmail = email.trim().toLowerCase();
+    const lastSubmission = recentSubmissions.get(normalizedEmail);
+    if (lastSubmission && Date.now() - lastSubmission < RATE_LIMIT_MS) {
+      return NextResponse.json(
+        { error: "Please wait before submitting another message" },
+        { status: 429 }
+      );
+    }
+    recentSubmissions.set(normalizedEmail, Date.now());
 
     const resend = getResend();
 

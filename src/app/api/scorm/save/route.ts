@@ -92,11 +92,24 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
 
+    // Cap session time at 4 hours (14400s) to prevent clock manipulation
+    const MAX_SESSION_SECONDS = 14400;
+    const rawSessionTime =
+      typeof sessionTimeSeconds === "number" &&
+      Number.isFinite(sessionTimeSeconds) &&
+      sessionTimeSeconds > 0
+        ? sessionTimeSeconds
+        : 0;
+    const cappedSessionTime = Math.min(
+      Math.floor(rawSessionTime),
+      MAX_SESSION_SECONDS
+    );
+
     // Only accumulate time on final save to avoid double-counting.
     // Intermediate commits send the running session total, which would
     // inflate the stored value if accumulated on every call.
     let timeUpdate: number | undefined;
-    if (isFinal && sessionTimeSeconds && sessionTimeSeconds > 0) {
+    if (isFinal && cappedSessionTime > 0) {
       const { data: existing } = await supabase
         .from("module_progress")
         .select("time_spent_seconds")
@@ -104,20 +117,41 @@ export async function POST(request: Request) {
         .eq("module_id", moduleId)
         .single();
 
-      timeUpdate = (existing?.time_spent_seconds || 0) + sessionTimeSeconds;
+      timeUpdate = (existing?.time_spent_seconds || 0) + cappedSessionTime;
     }
+
+    // Check existing progress to avoid downgrading already-completed modules
+    const { data: existingProgress } = await supabase
+      .from("module_progress")
+      .select("status, completed_at, success_status, score")
+      .eq("enrollment_id", enrollmentId)
+      .eq("module_id", moduleId)
+      .maybeSingle();
+
+    const alreadyCompleted = existingProgress?.status === "completed";
+    const alreadyPassed = existingProgress?.success_status === "passed";
+
+    // Preserve highest score — don't overwrite with null or lower on re-entry
+    const finalScore =
+      score !== null && score >= 0 && score <= 100
+        ? Math.max(score, existingProgress?.score ?? 0)
+        : existingProgress?.score ?? null;
 
     // Build upsert payload — only include time_spent_seconds on final save
     const upsertData: Record<string, unknown> = {
       enrollment_id: enrollmentId,
       module_id: moduleId,
-      status,
-      completion_status: dbCompletionStatus,
-      success_status: dbSuccessStatus,
-      score: score !== null && score >= 0 && score <= 100 ? score : null,
+      status: alreadyCompleted ? "completed" : status,
+      completion_status: alreadyCompleted ? "completed" : dbCompletionStatus,
+      success_status: alreadyPassed ? "passed" : dbSuccessStatus,
+      score: finalScore,
       last_accessed: now,
       bookmark: location || null,
-      completed_at: status === "completed" ? now : null,
+      completed_at: alreadyCompleted
+        ? existingProgress.completed_at
+        : status === "completed"
+          ? now
+          : null,
       cmi_data: cmiData || {},
     };
     if (timeUpdate !== undefined) {
@@ -139,17 +173,17 @@ export async function POST(request: Request) {
 
     // Insert time log only on final save (Terminate or close)
     // Intermediate commits (every 20s) just update module_progress
-    if (isFinal && sessionTimeSeconds && sessionTimeSeconds > 0) {
+    if (isFinal && cappedSessionTime > 0) {
       const { error: timeLogError } = await supabase
         .from("time_logs")
         .insert({
           enrollment_id: enrollmentId,
           module_id: moduleId,
           started_at: new Date(
-            Date.now() - sessionTimeSeconds * 1000
+            Date.now() - cappedSessionTime * 1000
           ).toISOString(),
           ended_at: now,
-          duration_seconds: sessionTimeSeconds,
+          duration_seconds: cappedSessionTime,
           source: "scorm",
         });
 

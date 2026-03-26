@@ -7,7 +7,7 @@ import PDFDocument from "pdfkit";
 import { sendEmail } from "@/lib/send-email";
 import { certificateReadyEmail } from "@/lib/emails";
 
-/** Generate a unique certificate number: TP4U-FL-LIFE-2026-XXXXX */
+/** Generate a unique certificate number: TP4U-FL-LIFE-2026-XXXXXXXX */
 function generateCertificateNumber(
   courseState: string,
   courseType: string
@@ -20,7 +20,9 @@ function generateCertificateNumber(
       : courseType === "health"
         ? "HLTH"
         : "COMB";
-  const serial = String(Math.floor(10000 + Math.random() * 90000));
+  const serial = String(
+    Math.floor(10000000 + Math.random() * 90000000)
+  );
   return `TP4U-${stateCode}-${typeCode}-${year}-${serial}`;
 }
 
@@ -368,6 +370,7 @@ export async function POST(request: Request) {
     }
 
     // ── Generate certificate ──
+    const admin = createAdminClient();
     const meta = user.user_metadata || {};
     const studentName =
       meta.full_name ||
@@ -375,10 +378,28 @@ export async function POST(request: Request) {
       user.email ||
       "Student";
 
-    const certificateNumber = generateCertificateNumber(
-      course.state,
-      course.type
-    );
+    // Generate certificate number with retry on collision (up to 3 attempts)
+    let certificateNumber = "";
+    const MAX_CERT_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_CERT_RETRIES; attempt++) {
+      const candidate = generateCertificateNumber(course.state, course.type);
+      const { data: collision } = await admin
+        .from("certificates")
+        .select("id")
+        .eq("certificate_number", candidate)
+        .maybeSingle();
+      if (!collision) {
+        certificateNumber = candidate;
+        break;
+      }
+    }
+    if (!certificateNumber) {
+      return NextResponse.json(
+        { error: "Failed to generate unique certificate number" },
+        { status: 500 }
+      );
+    }
+
     const completionDate = new Date().toISOString();
     const totalHours = Math.round((totalSeconds / 3600) * 10) / 10;
 
@@ -400,7 +421,6 @@ export async function POST(request: Request) {
     });
 
     // ── Upload to Supabase Storage ──
-    const admin = createAdminClient();
     const storagePath = `${user.id}/${enrollmentId}.pdf`;
 
     const { error: uploadError } = await admin.storage
@@ -440,13 +460,17 @@ export async function POST(request: Request) {
     }
 
     // ── Update enrollment status to completed ──
-    await admin
+    const { error: enrollUpdateError } = await admin
       .from("enrollments")
       .update({
         status: "completed",
         completed_at: completionDate,
       })
       .eq("id", enrollmentId);
+
+    if (enrollUpdateError) {
+      console.error("Enrollment status update error:", enrollUpdateError);
+    }
 
     // ── Send certificate ready email ──
     if (user.email) {

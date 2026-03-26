@@ -62,13 +62,15 @@ function layout(content: string): string {
 </html>`;
 }
 
-/** Blue CTA button */
+/** Blue CTA button — escapes text and validates href */
 function button(text: string, href: string): string {
+  const safeText = esc(text);
+  const safeHref = esc(href);
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
   <tr>
     <td style="background-color:${BLUE};border-radius:8px;">
-      <a href="${href}" target="_blank" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
-        ${text}
+      <a href="${safeHref}" target="_blank" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
+        ${safeText}
       </a>
     </td>
   </tr>
@@ -87,7 +89,7 @@ export function welcomeEmail(name: string): {
   subject: string;
   html: string;
 } {
-  const firstName = name.split(" ")[0] || "there";
+  const firstName = esc(name.split(" ")[0] || "there");
   return {
     subject: "Welcome to TestPrep4U — Let's Get You Licensed!",
     html: layout(`
@@ -138,9 +140,11 @@ export function enrollmentEmail(opts: {
   accessMonths: number;
   expiresAt: string;
 }): { subject: string; html: string } {
-  const firstName = opts.name.split(" ")[0] || "there";
-  const tierLabel =
-    opts.tier.charAt(0).toUpperCase() + opts.tier.slice(1);
+  const firstName = esc(opts.name.split(" ")[0] || "there");
+  const safeCourseName = esc(opts.courseName);
+  const tierLabel = esc(
+    opts.tier.charAt(0).toUpperCase() + opts.tier.slice(1)
+  );
   const expiresFormatted = new Date(opts.expiresAt).toLocaleDateString(
     "en-US",
     { year: "numeric", month: "long", day: "numeric" }
@@ -161,7 +165,7 @@ export function enrollmentEmail(opts: {
             <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
               <tr>
                 <td style="padding:6px 0;font-size:13px;color:${GRAY_500};">Program</td>
-                <td style="padding:6px 0;font-size:14px;font-weight:600;color:${NAVY};text-align:right;">${opts.courseName}</td>
+                <td style="padding:6px 0;font-size:14px;font-weight:600;color:${NAVY};text-align:right;">${safeCourseName}</td>
               </tr>
               <tr>
                 <td style="padding:6px 0;font-size:13px;color:${GRAY_500};">Plan</td>
@@ -197,7 +201,7 @@ export function sectionCompletedEmail(opts: {
   completedSections: number;
   courseSlug: string;
 }): { subject: string; html: string } {
-  const firstName = opts.name.split(" ")[0] || "there";
+  const firstName = esc(opts.name.split(" ")[0] || "there");
   const progressPercent = Math.round(
     (opts.completedSections / opts.totalSections) * 100
   );
@@ -209,7 +213,7 @@ export function sectionCompletedEmail(opts: {
         Nice work, ${firstName}!
       </h1>
       <p style="margin:0 0 20px;font-size:15px;color:${GRAY_700};line-height:1.6;">
-        You passed the <strong>Part ${opts.sectionNumber}: ${opts.sectionTitle}</strong> quiz with a score of <strong style="color:${SUCCESS};">${opts.score}%</strong>.
+        You passed the <strong>Part ${opts.sectionNumber}: ${esc(opts.sectionTitle)}</strong> quiz with a score of <strong style="color:${SUCCESS};">${opts.score}%</strong>.
       </p>
       <!-- Progress bar -->
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 8px;">
@@ -243,7 +247,7 @@ export function finalExamPassedEmail(opts: {
   courseName: string;
   courseSlug: string;
 }): { subject: string; html: string } {
-  const firstName = opts.name.split(" ")[0] || "there";
+  const firstName = esc(opts.name.split(" ")[0] || "there");
 
   return {
     subject: `You Passed the Final Exam! — ${opts.score}%`,
@@ -257,7 +261,7 @@ export function finalExamPassedEmail(opts: {
         Congratulations, ${firstName}!
       </h1>
       <p style="margin:0 0 20px;font-size:15px;color:${GRAY_700};line-height:1.6;text-align:center;">
-        You passed the <strong>${opts.courseName}</strong> final exam with a score of <strong style="color:${SUCCESS};">${opts.score}%</strong>.
+        You passed the <strong>${esc(opts.courseName)}</strong> final exam with a score of <strong style="color:${SUCCESS};">${opts.score}%</strong>.
       </p>
       ${divider()}
       <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:${NAVY};">
@@ -281,7 +285,7 @@ export function certificateReadyEmail(opts: {
   certificateNumber: string;
   courseSlug: string;
 }): { subject: string; html: string } {
-  const firstName = opts.name.split(" ")[0] || "there";
+  const firstName = esc(opts.name.split(" ")[0] || "there");
 
   return {
     subject: "Your Completion Certificate Is Ready!",
@@ -295,13 +299,13 @@ export function certificateReadyEmail(opts: {
         Your Certificate Is Ready, ${firstName}!
       </h1>
       <p style="margin:0 0 20px;font-size:15px;color:${GRAY_700};line-height:1.6;text-align:center;">
-        You've completed the <strong>${opts.courseName}</strong> pre-licensing course.
+        You've completed the <strong>${esc(opts.courseName)}</strong> pre-licensing course.
       </p>
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:${BG};border-radius:8px;margin:0 0 20px;">
         <tr>
           <td style="padding:16px 20px;text-align:center;">
             <p style="margin:0 0 4px;font-size:12px;color:${GRAY_500};text-transform:uppercase;letter-spacing:0.05em;">Certificate Number</p>
-            <p style="margin:0;font-size:16px;font-weight:700;color:${NAVY};font-family:monospace;">${opts.certificateNumber}</p>
+            <p style="margin:0;font-size:16px;font-weight:700;color:${NAVY};font-family:monospace;">${esc(opts.certificateNumber)}</p>
           </td>
         </tr>
       </table>
@@ -346,8 +350,12 @@ export function contactNotificationEmail(opts: {
   const safeSubject = esc(opts.subject);
   const safeMessage = esc(opts.message);
 
+  // Strip newlines to prevent header injection in email subject
+  const cleanSubject = opts.subject.replace(/[\r\n]+/g, " ").trim();
+  const cleanName = opts.name.replace(/[\r\n]+/g, " ").trim();
+
   return {
-    subject: `[Contact Form] ${opts.subject} — from ${opts.name}`,
+    subject: `[Contact Form] ${cleanSubject} — from ${cleanName}`,
     html: layout(`
       <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:${NAVY};line-height:1.3;">
         New Contact Form Submission

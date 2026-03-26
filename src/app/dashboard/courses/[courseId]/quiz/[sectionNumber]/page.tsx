@@ -1,24 +1,48 @@
-"use client";
+import { redirect } from "next/navigation";
+import { getCourseDetail } from "@/lib/course-data";
+import { SectionQuizClient } from "./SectionQuizClient";
 
-import { useParams, useRouter } from "next/navigation";
-import { QuizEngine } from "@/components/dashboard/QuizEngine";
+interface PageProps {
+  params: Promise<{ courseId: string; sectionNumber: string }>;
+}
 
-export default function SectionQuizPage() {
-  const params = useParams<{ courseId: string; sectionNumber: string }>();
-  const router = useRouter();
+export default async function SectionQuizPage({ params }: PageProps) {
+  const { courseId, sectionNumber: sectionNumStr } = await params;
+  const sectionNumber = parseInt(sectionNumStr, 10);
 
-  const sectionNumber = parseInt(params.sectionNumber, 10);
+  if (isNaN(sectionNumber)) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
 
-  return (
-    <div className="mx-auto max-w-5xl py-4">
-      <QuizEngine
-        title={`Part ${sectionNumber} Quiz`}
-        courseId={params.courseId}
-        quizType="section_quiz"
-        sectionNumber={sectionNumber}
-        passScore={70}
-        onExit={() => router.push(`/dashboard/courses/${params.courseId}`)}
-      />
-    </div>
+  const detail = await getCourseDetail(courseId);
+
+  // No enrollment or course not found → redirect
+  if (!detail) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  // Find the target section
+  const targetSection = detail.sections.find(
+    (s) => s.sectionNumber === sectionNumber
   );
+
+  if (!targetSection) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  // Verify section is unlocked
+  if (!targetSection.isUnlocked) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  // Verify all lesson modules in this section are completed
+  const allLessonsComplete = targetSection.modules
+    .filter((m) => m.moduleType === "lesson")
+    .every((m) => m.progress?.status === "completed");
+
+  if (!allLessonsComplete) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  return <SectionQuizClient courseId={courseId} sectionNumber={sectionNumber} />;
 }

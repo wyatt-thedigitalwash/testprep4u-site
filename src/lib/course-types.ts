@@ -16,6 +16,7 @@ export interface CourseEnrollment {
   enrolledAt: string;
   expiresAt: string;
   affidavitAcceptedAt: string | null;
+  hasStarted: boolean;
 }
 
 export interface ModuleData {

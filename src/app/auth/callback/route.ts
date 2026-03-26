@@ -14,10 +14,41 @@ function sanitizeRedirect(
   return fallback;
 }
 
+/** Map Supabase error codes/descriptions to user-friendly messages */
+function friendlyError(
+  errorCode: string | null,
+  errorDescription: string | null
+): string {
+  const code = errorCode || "";
+  const desc = (errorDescription || "").toLowerCase();
+
+  if (code === "otp_expired" || desc.includes("expired")) {
+    return "Your confirmation link has expired. Please sign up again or request a new link.";
+  }
+  if (code === "access_denied" || desc.includes("access_denied")) {
+    return "Access denied. The link may have already been used or is invalid.";
+  }
+  if (desc.includes("invalid") || code === "otp_invalid") {
+    return "This link is invalid or has already been used. Please request a new one.";
+  }
+  return "Something went wrong with your link. Please try signing in or request a new link.";
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const nextParam = searchParams.get("next");
+
+  // Supabase redirects with error params when confirmation/reset links fail
+  const errorCode = searchParams.get("error_code") || searchParams.get("error");
+  const errorDescription = searchParams.get("error_description");
+
+  if (errorCode || errorDescription) {
+    const message = friendlyError(errorCode, errorDescription);
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(message)}`
+    );
+  }
 
   if (code) {
     const supabase = await createServerSupabaseClient();
@@ -60,8 +91,14 @@ export async function GET(request: Request) {
       );
       return NextResponse.redirect(`${origin}${redirect}`);
     }
+
+    // Code exchange failed — provide a helpful message
+    const message = "Your link has expired or is invalid. Please try signing in or request a new link.";
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(message)}`
+    );
   }
 
-  // Auth code exchange failed — redirect to login with error
+  // No code and no error — redirect to login
   return NextResponse.redirect(`${origin}/login`);
 }

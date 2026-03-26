@@ -103,6 +103,7 @@ interface TierCardProps {
 function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const autoCheckoutFired = useRef(false);
   const price = tier.prices[courseType];
   const isHighlighted = tier.highlighted;
@@ -110,27 +111,54 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardP
   const handleCheckout = useCallback(async () => {
     setLoading(true);
     try {
+      // Check for existing enrollment before initiating checkout
+      const enrollCheck = await fetch("/api/user/has-enrollments");
+      if (enrollCheck.ok) {
+        const enrollData = await enrollCheck.json();
+        if (enrollData.hasEnrollments) {
+          // Already enrolled — redirect to dashboard instead of double-charging
+          router.push("/dashboard");
+          return;
+        }
+      }
+
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tier: tier.slug, courseType }),
       });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          // Not logged in — redirect to signup with plan context
+          localStorage.setItem(
+            "pendingCheckout",
+            JSON.stringify({ plan: tier.slug, course: courseType })
+          );
+          router.push(`/signup?plan=${tier.slug}&course=${courseType}`);
+          setLoading(false);
+          return;
+        }
+        const errData = await res.json().catch(() => null);
+        setError(errData?.error || "Something went wrong. Please try again.");
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
 
       if (data.url) {
+        // Clear autoCheckout from URL to prevent re-trigger on back navigation
+        const url = new URL(window.location.href);
+        url.searchParams.delete("autoCheckout");
+        window.history.replaceState({}, "", url.toString());
         window.location.href = data.url;
-      } else if (res.status === 401) {
-        // Not logged in — redirect to signup with plan context
-        localStorage.setItem(
-          "pendingCheckout",
-          JSON.stringify({ plan: tier.slug, course: courseType })
-        );
-        router.push(`/signup?plan=${tier.slug}&course=${courseType}`);
       } else {
-        console.error("Checkout error:", data.error);
+        setError("Failed to create checkout session. Please try again.");
         setLoading(false);
       }
     } catch {
+      setError("Something went wrong. Please try again.");
       setLoading(false);
     }
   }, [tier.slug, courseType, router]);
@@ -226,10 +254,17 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardP
         ))}
       </ul>
 
+      {/* Error message */}
+      {error && (
+        <div className="mt-4 rounded-lg bg-error-light px-4 py-3 text-xs text-error">
+          {error}
+        </div>
+      )}
+
       {/* CTA */}
       <div className="mt-8">
         <button
-          onClick={handleCheckout}
+          onClick={() => { setError(""); handleCheckout(); }}
           disabled={loading || price === 0}
           className="inline-flex w-full items-center justify-center rounded-lg bg-blue-500 px-8 py-3.5 font-body font-bold text-white shadow-sm transition-all duration-300 ease-out hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)] disabled:opacity-50"
         >

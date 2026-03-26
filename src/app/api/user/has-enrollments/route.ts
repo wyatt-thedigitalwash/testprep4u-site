@@ -15,7 +15,8 @@ export async function GET() {
     .from("enrollments")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
-    .eq("status", "active");
+    .in("status", ["active", "completed"])
+    .gt("expires_at", new Date().toISOString());
 
   return NextResponse.json({ hasEnrollments: (count ?? 0) > 0 });
 }

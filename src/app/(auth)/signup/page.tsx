@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { Eye, EyeOff } from "lucide-react";
 import { signup } from "@/lib/supabase-auth";
 
 const US_STATES = [
@@ -20,6 +21,7 @@ function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [state, setState] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [emailExists, setEmailExists] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,6 +34,7 @@ function SignupForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setEmailExists(false);
     setLoading(true);
 
     if (password.length < 8) {
@@ -111,6 +114,9 @@ function SignupForm() {
               <span className="font-medium text-gray-700">{email}</span>.
               Click the link to activate your account.
             </p>
+            <p className="mt-2 text-sm font-medium text-warning">
+              You won&apos;t be able to sign in until you confirm your email.
+            </p>
             <Link
               href={`/login${planParams}`}
               className="mt-6 inline-block text-sm font-medium text-blue-500 hover:text-blue-600"
@@ -174,16 +180,26 @@ function SignupForm() {
                 >
                   Password
                 </label>
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="At least 8 characters"
-                />
+                <div className="relative mt-1">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-200 px-4 py-2.5 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="At least 8 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>

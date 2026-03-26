@@ -50,7 +50,7 @@ create table public.course_modules (
   section_id uuid not null references public.course_sections(id) on delete cascade,
   module_type text not null check (module_type in ('lesson', 'quiz')),
   title text not null,
-  scorm_entry_path text not null,
+  scorm_entry_path text,  -- nullable for native quiz modules (non-SCORM)
   sort_order integer not null,
   quiz_pass_score numeric check (quiz_pass_score >= 0 and quiz_pass_score <= 100),
   unique (section_id, sort_order)
@@ -132,7 +132,7 @@ create table public.time_logs (
   started_at timestamptz not null,
   ended_at timestamptz not null,
   duration_seconds integer not null,
-  source text not null check (source in ('scorm', 'practice_exam', 'final_exam'))
+  source text not null check (source in ('scorm', 'quiz', 'practice_exam', 'final_exam') or source like 'upgrade:%')
 );
 
 create index idx_time_logs_enrollment_id on public.time_logs(enrollment_id);
@@ -178,6 +178,7 @@ create table public.exam_attempts (
 );
 
 create index idx_exam_attempts_enrollment_id on public.exam_attempts(enrollment_id);
+create index idx_exam_attempts_enrollment_type on public.exam_attempts(enrollment_id, exam_type);
 
 alter table public.exam_attempts enable row level security;
 
@@ -219,10 +220,11 @@ create index idx_question_bank_topic on public.question_bank(topic);
 
 alter table public.question_bank enable row level security;
 
--- Questions are read by authenticated users during exams
-create policy "Authenticated users can read questions"
+-- Questions are only accessible via service role (API routes).
+-- Prevents authenticated users from reading correct_index directly.
+create policy "Only service role can read questions"
   on public.question_bank for select
-  using (auth.role() = 'authenticated');
+  using (auth.role() = 'service_role');
 
 -- ============================================================
 -- CERTIFICATES (recreated — same schema as 001, no changes)
@@ -251,4 +253,4 @@ create policy "Users can read own certificates"
 
 create policy "Service role can insert certificates"
   on public.certificates for insert
-  with check (true);
+  with check (auth.role() = 'service_role');

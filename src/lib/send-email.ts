@@ -19,6 +19,7 @@ export function sendEmail(opts: {
       replyTo: opts.replyTo,
     })
     .catch((err) => {
+      // TODO: Add email retry logic (e.g. exponential backoff or dead-letter queue)
       console.error(`[Email] Failed to send "${opts.subject}" to ${opts.to}:`, err);
     });
 }

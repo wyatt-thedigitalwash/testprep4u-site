@@ -35,9 +35,14 @@ export interface ScormAPIOptions {
   onTerminate?: (summary: ScormSessionSummary) => void;
 }
 
+// TODO: Implement idle detection — if no user activity for >5 minutes,
+// auto-end the SCORM session server-side to prevent inflated seat time.
+// TODO: Use SCORM cmi.session_time to cross-validate elapsed time
+// reported by the client against server wall-clock time.
+
 // Default CMI data model values (SCORM 2004 3rd Edition)
 const CMI_DEFAULTS: ScormData = {
-  "cmi.completion_status": "unknown",
+  "cmi.completion_status": "not attempted",
   "cmi.completion_threshold": "",
   "cmi.credit": "credit",
   "cmi.entry": "ab-initio",
@@ -86,15 +91,18 @@ const WRITE_ONLY = new Set([
   "cmi.session_time",
 ]);
 
-/** Parse ISO 8601 duration (PTxHxMxS) to total seconds */
+/** Parse ISO 8601 duration (P[nD]T[nH][nM][nS]) to total seconds */
 function parseDuration(iso: string): number {
   if (!iso) return 0;
-  const match = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/);
+  const match = iso.match(
+    /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/
+  );
   if (!match) return 0;
-  const h = parseInt(match[1] || "0", 10);
-  const m = parseInt(match[2] || "0", 10);
-  const s = parseFloat(match[3] || "0");
-  return h * 3600 + m * 60 + s;
+  const d = parseInt(match[1] || "0", 10);
+  const h = parseInt(match[2] || "0", 10);
+  const m = parseInt(match[3] || "0", 10);
+  const s = parseFloat(match[4] || "0");
+  return d * 86400 + h * 3600 + m * 60 + s;
 }
 
 /** Convert seconds to ISO 8601 duration (PTxHxMxS) */
@@ -107,6 +115,22 @@ function toDuration(totalSeconds: number): string {
   if (m > 0) result += `${m}M`;
   if (s > 0 || result === "PT") result += `${s}S`;
   return result;
+}
+
+const IS_DEV = typeof process !== "undefined" && process.env?.NODE_ENV === "development";
+
+function scormLog(message: string, style?: string, ...args: unknown[]) {
+  if (!IS_DEV) return;
+  if (style) {
+    console.log(message, style, ...args);
+  } else {
+    console.log(message, ...args);
+  }
+}
+
+function scormWarn(message: string) {
+  if (!IS_DEV) return;
+  console.warn(message);
 }
 
 export class ScormAPI {
@@ -160,13 +184,13 @@ export class ScormAPI {
       const countStr = this.data["cmi.interactions._count"] || "0";
       this.interactionCount = parseInt(countStr, 10) || 0;
 
-      console.log(
+      scormLog(
         "%c[SCORM API] Resuming session — loaded saved CMI data",
         "color: #447FF0; font-weight: bold",
         `(entry: ${this.data["cmi.entry"]}, total_time: ${this.data["cmi.total_time"]})`
       );
     } else {
-      console.log(
+      scormLog(
         "%c[SCORM API] New session — no saved data",
         "color: #447FF0; font-weight: bold"
       );
@@ -178,14 +202,14 @@ export class ScormAPI {
   }
 
   Initialize(_param: string): string {
-    console.log(
+    scormLog(
       "%c[SCORM API] Initialize(\"\")",
       "color: #447FF0; font-weight: bold"
     );
 
     if (this.initialized) {
       this.lastError = "103"; // Already Initialized
-      console.warn("[SCORM API] Already initialized");
+      scormWarn("[SCORM API] Already initialized");
       return "false";
     }
 
@@ -196,7 +220,7 @@ export class ScormAPI {
   }
 
   Terminate(_param: string): string {
-    console.log(
+    scormLog(
       "%c[SCORM API] Terminate(\"\")",
       "color: #447FF0; font-weight: bold"
     );
@@ -217,7 +241,7 @@ export class ScormAPI {
     const newTotalSeconds = this.previousTotalSeconds + sessionSeconds;
     this.data["cmi.total_time"] = toDuration(newTotalSeconds);
 
-    console.log(
+    scormLog(
       `%c[SCORM API] Total time updated: ${this.data["cmi.total_time"]} (session: ${this.data["cmi.session_time"]})`,
       "color: #10b981; font-weight: bold"
     );
@@ -242,7 +266,7 @@ export class ScormAPI {
     // Check write-only
     if (WRITE_ONLY.has(element)) {
       this.lastError = "405"; // Data Model Element Is Write Only
-      console.log(
+      scormLog(
         `%c[SCORM API] GetValue("${element}") → WRITE-ONLY`,
         "color: #ef4444"
       );
@@ -252,7 +276,7 @@ export class ScormAPI {
     const value = this.data[element] ?? "";
     this.lastError = "0";
 
-    console.log(
+    scormLog(
       `%c[SCORM API] GetValue("${element}") → "${value.length > 100 ? value.slice(0, 100) + "…" : value}"`,
       "color: #10b981"
     );
@@ -269,7 +293,7 @@ export class ScormAPI {
     // Check read-only
     if (READ_ONLY.has(element)) {
       this.lastError = "404"; // Data Model Element Is Read Only
-      console.log(
+      scormLog(
         `%c[SCORM API] SetValue("${element}", "${value}") → READ-ONLY`,
         "color: #ef4444"
       );
@@ -311,12 +335,12 @@ export class ScormAPI {
     const isSuspendData = element === "cmi.suspend_data";
 
     if (isSuspendData) {
-      console.log(
+      scormLog(
         `%c[SCORM API] SetValue("cmi.suspend_data", "[${value.length} chars]")`,
         "color: #8b5cf6"
       );
     } else {
-      console.log(
+      scormLog(
         `%c[SCORM API] SetValue("${element}", "${value}")`,
         isKey
           ? "color: #f59e0b; font-weight: bold"
@@ -333,7 +357,7 @@ export class ScormAPI {
       return "false";
     }
 
-    console.log(
+    scormLog(
       "%c[SCORM API] Commit(\"\")",
       "color: #447FF0"
     );

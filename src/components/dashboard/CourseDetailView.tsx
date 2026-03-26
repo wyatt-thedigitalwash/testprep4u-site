@@ -388,10 +388,6 @@ function FinalExamCard({
   const blockers: string[] = [];
   if (!detail.allSectionsComplete)
     blockers.push("Complete all course sections");
-  if (!detail.meetsHourRequirement)
-    blockers.push(
-      `Log ${formatHours(detail.requiredTimeSeconds - detail.totalTimeSeconds)}h more study time`
-    );
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -460,12 +456,27 @@ function FinalExamCard({
 
       {/* Action buttons */}
       <div className="mt-5 flex flex-wrap gap-3">
-        <Link
-          href={`/dashboard/courses/${courseSlug}/practice-exam`}
-          className="inline-flex items-center justify-center rounded-lg border-2 border-blue-500 px-6 py-2.5 font-body text-sm font-bold text-blue-500 transition-all duration-300 hover:bg-blue-500 hover:text-white"
-        >
-          Practice Exam
-        </Link>
+        {detail.canTakeFinalExam ? (
+          <Link
+            href={`/dashboard/courses/${courseSlug}/practice-exam`}
+            className="inline-flex items-center justify-center rounded-lg border-2 border-blue-500 px-6 py-2.5 font-body text-sm font-bold text-blue-500 transition-all duration-300 hover:bg-blue-500 hover:text-white"
+          >
+            Practice Exam
+          </Link>
+        ) : (
+          <div className="group relative">
+            <button
+              disabled
+              className="inline-flex items-center gap-2 rounded-lg border-2 border-gray-200 px-6 py-2.5 font-body text-sm font-bold text-gray-400"
+            >
+              <Lock size={14} />
+              Practice Exam
+            </button>
+            <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+              Complete all sections to unlock
+            </span>
+          </div>
+        )}
 
         {/* Final exam button */}
         {detail.finalExamPassed ? null : detail.canTakeFinalExam ? (
@@ -476,12 +487,18 @@ function FinalExamCard({
             Take Final Exam
           </Link>
         ) : (
-          <button
-            disabled
-            className="inline-flex items-center justify-center rounded-lg bg-blue-500 px-6 py-2.5 font-body text-sm font-bold text-white opacity-50 shadow-sm"
-          >
-            Final Exam (Requirements Not Met)
-          </button>
+          <div className="group relative">
+            <button
+              disabled
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-200 px-6 py-2.5 font-body text-sm font-bold text-gray-400"
+            >
+              <Lock size={14} />
+              Final Exam
+            </button>
+            <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+              Complete all sections to unlock
+            </span>
+          </div>
         )}
 
         {/* Affidavit button — show after final exam passed + hours met */}

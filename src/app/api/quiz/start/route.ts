@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
@@ -50,6 +50,20 @@ export async function POST(request: Request) {
 
     let questions;
 
+    if (type === "section_quiz") {
+      if (
+        sectionNumber === undefined ||
+        typeof sectionNumber !== "number" ||
+        !Number.isInteger(sectionNumber) ||
+        sectionNumber < 0
+      ) {
+        return NextResponse.json(
+          { error: "sectionNumber must be a non-negative integer" },
+          { status: 400 }
+        );
+      }
+    }
+
     if (type === "section_quiz" && sectionNumber !== undefined) {
       // Get section for this course + section number
       const { data: section } = await supabase
@@ -92,6 +106,7 @@ export async function POST(request: Request) {
       }
 
       // Get lesson module titles — these are used as topic keys in question_bank
+      // Use case-insensitive matching via ilike to handle minor differences
       const { data: modules } = await supabase
         .from("course_modules")
         .select("title")
@@ -104,12 +119,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ questions: [] });
       }
 
-      // Pull questions matching these topics
-      const { data: questionData, error: qErr } = await supabase
+      // Pull questions matching these topics for the section.
+      // Use admin client because question_bank RLS restricts to service_role.
+      // Fetch all eligible questions for this course, then filter by topic in JS
+      // to avoid PostgREST .or() issues with commas and special characters in topic titles.
+      const adminClient = createAdminClient();
+      const { data: questionData, error: qErr } = await adminClient
         .from("question_bank")
         .select("id, question_text, options, topic")
         .eq("course_id", course.id)
-        .in("topic", topics);
+        .in("exam_type", ["practice", "both"]);
 
       if (qErr) {
         console.error("Question fetch error:", qErr);
@@ -119,7 +138,11 @@ export async function POST(request: Request) {
         );
       }
 
-      questions = questionData || [];
+      // Case-insensitive topic matching in JS — safe regardless of special characters
+      const topicSet = new Set(topics.map((t) => t.toLowerCase()));
+      questions = (questionData || []).filter((q) =>
+        topicSet.has(q.topic.toLowerCase())
+      );
     } else {
       // Practice or final exam — verify all SCORM sections complete
       const { data: allModules } = await supabase
@@ -148,7 +171,9 @@ export async function POST(request: Request) {
       const examFilter =
         type === "final" ? ["final", "both"] : ["practice", "both"];
 
-      const { data: questionData, error: qErr } = await supabase
+      // Use admin client because question_bank RLS restricts to service_role
+      const adminClient = createAdminClient();
+      const { data: questionData, error: qErr } = await adminClient
         .from("question_bank")
         .select("id, question_text, options, topic")
         .eq("course_id", course.id)
@@ -174,7 +199,8 @@ export async function POST(request: Request) {
     // Limit question count by type
     let limit = questions.length;
     if (type === "final") limit = Math.min(85, questions.length);
-    if (type === "practice") limit = Math.min(50, questions.length);
+    else if (type === "practice") limit = Math.min(50, questions.length);
+    else if (type === "section_quiz") limit = Math.min(10, questions.length);
 
     return NextResponse.json({
       questions: questions.slice(0, limit),

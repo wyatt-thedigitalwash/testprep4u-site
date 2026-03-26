@@ -1,21 +1,24 @@
-"use client";
+import { redirect } from "next/navigation";
+import { getCourseDetail } from "@/lib/course-data";
+import { PracticeExamClient } from "./PracticeExamClient";
 
-import { useParams, useRouter } from "next/navigation";
-import { QuizEngine } from "@/components/dashboard/QuizEngine";
+interface PageProps {
+  params: Promise<{ courseId: string }>;
+}
 
-export default function PracticeExamPage() {
-  const { courseId } = useParams<{ courseId: string }>();
-  const router = useRouter();
+export default async function PracticeExamPage({ params }: PageProps) {
+  const { courseId } = await params;
+  const detail = await getCourseDetail(courseId);
 
-  return (
-    <div className="mx-auto max-w-5xl py-4">
-      <QuizEngine
-        title="Practice Exam"
-        courseId={courseId}
-        quizType="practice"
-        passScore={80}
-        onExit={() => router.push(`/dashboard/courses/${courseId}/exams`)}
-      />
-    </div>
-  );
+  // No enrollment or course not found → redirect
+  if (!detail) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  // Must have all sections complete to take practice exam
+  if (!detail.canTakeFinalExam) {
+    redirect(`/dashboard/courses/${courseId}`);
+  }
+
+  return <PracticeExamClient courseId={courseId} />;
 }

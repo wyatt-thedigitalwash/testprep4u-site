@@ -132,18 +132,39 @@ export default async function ModulePage({ params }: Props) {
       .select("id")
       .eq("section_id", prevSection.id)
       .eq("module_type", "quiz")
-      .single();
+      .maybeSingle();
 
     if (prevQuiz) {
+      // Previous section has a quiz — must be passed
       const { data: prevQuizProgress } = await supabase
         .from("module_progress")
         .select("success_status")
         .eq("enrollment_id", enrollment.id)
         .eq("module_id", prevQuiz.id)
-        .single();
+        .maybeSingle();
 
       if (prevQuizProgress?.success_status !== "passed") {
         isUnlocked = false;
+      }
+    } else {
+      // Previous section has no quiz — all modules must be completed
+      const { data: prevSectionModules } = await supabase
+        .from("course_modules")
+        .select("id")
+        .eq("section_id", prevSection.id);
+
+      if (prevSectionModules && prevSectionModules.length > 0) {
+        const prevModuleIds = prevSectionModules.map((m) => m.id);
+        const { data: prevModProgress } = await supabase
+          .from("module_progress")
+          .select("module_id")
+          .eq("enrollment_id", enrollment.id)
+          .in("module_id", prevModuleIds)
+          .eq("status", "completed");
+
+        if ((prevModProgress?.length || 0) < prevModuleIds.length) {
+          isUnlocked = false;
+        }
       }
     }
   }
@@ -154,8 +175,10 @@ export default async function ModulePage({ params }: Props) {
 
   // Build learner name in "Last, First" format for SCORM
   const meta = user.user_metadata || {};
-  const firstName = meta.first_name || meta.name || "";
-  const lastName = meta.last_name || "";
+  const fullName = meta.full_name || meta.name || "";
+  const nameParts = fullName.trim().split(/\s+/);
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
   const learnerName = lastName && firstName
     ? `${lastName}, ${firstName}`
     : firstName || lastName || user.email || "";
