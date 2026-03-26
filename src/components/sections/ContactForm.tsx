@@ -20,13 +20,38 @@ export function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSending(true);
-    // TODO: Wire up Resend API route (e.g. POST /api/contact)
-    await new Promise((r) => setTimeout(r, 800));
-    setSending(false);
-    setSubmitted(true);
+    setError(null);
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.get("name"),
+          email: formData.get("email"),
+          subject: formData.get("subject"),
+          message: formData.get("message"),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to send message");
+      }
+
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Please try again or email us directly.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -135,6 +160,11 @@ export function ContactForm() {
                     className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
+
+                {/* Error */}
+                {error && (
+                  <p className="text-sm text-error">{error}</p>
+                )}
 
                 {/* Submit */}
                 <button

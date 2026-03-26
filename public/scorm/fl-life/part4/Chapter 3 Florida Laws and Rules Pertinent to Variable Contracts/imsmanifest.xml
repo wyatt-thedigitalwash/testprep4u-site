@@ -1,0 +1,147 @@
+<?xml version="1.0" standalone="no" ?>
+<manifest identifier="JinIfXbDy2iCo1GzlkFWMcYL7JEYYG-U9xF2KITw" version="1.3"
+  xmlns="http://www.imsglobal.org/xsd/imscp_v1p1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_v1p3"
+  xmlns:adlseq="http://www.adlnet.org/xsd/adlseq_v1p3"
+  xmlns:adlnav = "http://www.adlnet.org/xsd/adlnav_v1p3"
+  xmlns:imsss="http://www.imsglobal.org/xsd/imsss"
+  xsi:schemaLocation="http://www.imsglobal.org/xsd/imscp_v1p1 imscp_v1p1.xsd
+                      http://www.adlnet.org/xsd/adlcp_v1p3 adlcp_v1p3.xsd
+                      http://www.adlnet.org/xsd/adlseq_v1p3 adlseq_v1p3.xsd
+                      http://www.adlnet.org/xsd/adlnav_v1p3 adlnav_v1p3.xsd
+                      http://www.imsglobal.org/xsd/imsss imsss_v1p0.xsd">
+  <metadata>
+    <schema>ADL SCORM</schema>
+    <schemaversion>2004 3rd Edition</schemaversion>
+    <adlcp:location>metadata.xml</adlcp:location>   
+  </metadata>
+  <organizations default="B0">
+    <organization identifier="B0" adlseq:objectivesGlobalToSystem="false">
+      <title>Chapter 3: Florida Laws and Rules Pertinent to Variable Contracts</title>
+      <item identifier="i1" identifierref="r1" isvisible="true">
+        <title>Chapter 3: Florida Laws and Rules Pertinent to Variable Contracts</title>
+        
+        <imsss:sequencing>
+          <imsss:deliveryControls tracked="true" completionSetByContent="true" objectiveSetByContent="true"/>
+        </imsss:sequencing>
+      </item>
+      <metadata>
+        <adlcp:location>metadata.xml</adlcp:location>
+      </metadata>
+      <imsss:sequencing>
+        <imsss:controlMode choice="true" flow="true"/>
+      </imsss:sequencing>
+    </organization>
+  </organizations>
+  <resources>
+    <resource identifier="r1" type="webcontent" adlcp:scormType="sco" href="scormdriver/indexAPI.html">
+      <!-- SCORMDRIVER STUFF -->
+      <file href="scormdriver/indexAPI.html" />
+      <file href="scormdriver/preloadIntegrity.js" />
+      <file href="scormdriver/driverOptions.js" />
+      <file href="scormdriver/AICCComm.html" />
+      <file href="scormdriver/auto-scripts/AutoBookmark.js" />
+      <file href="scormdriver/auto-scripts/AutoCompleteSCO.js" />
+      <file href="scormdriver/auto-scripts/CourseExit.js" />
+      <file href="scormdriver/blank.html" />
+      <file href="scormdriver/goodbye.html" />
+      <file href="scormdriver/scormdriver.js" />
+      <file href="scormdriver/browsersniff.js" />
+
+      <!-- RUNTIME COMMON STUFF -->
+      <file href="scormcontent/index.html" />
+
+      
+        <file href="scormcontent/lib/lzwcompress.js"/>
+      
+
+      <!-- FRONTEND BUNDLE ASSETS -->
+      <file href="scormcontent/lib/rise/4a59ce95.js" />
+<file href="scormcontent/lib/rise/bc217a8a.css" />
+<file href="scormcontent/lib/rise/077132b2.js" />
+<file href="scormcontent/lib/rise/341c1fbc.css" />
+<file href="scormcontent/lib/rise/1584d67c.js" />
+<file href="scormcontent/lib/rise/9aede266.ttf" />
+<file href="scormcontent/lib/rise/bff47411.woff" />
+<file href="scormcontent/lib/rise/ca8fdaed.js" />
+<file href="scormcontent/lib/rise/7adba53a.js" />
+<file href="scormcontent/lib/rise/b74eb1e4.js" />
+<file href="scormcontent/lib/rise/c390512f.js" />
+<file href="scormcontent/lib/rise/3125981b.js" />
+<file href="scormcontent/lib/rise/884df0b0.js" />
+<file href="scormcontent/lib/rise/50b72974.js" />
+<file href="scormcontent/lib/rise/825741df.js" />
+<file href="scormcontent/lib/rise/4ca412c8.js" />
+<file href="scormcontent/lib/rise/64c13194.js" />
+<file href="scormcontent/lib/rise/4ad68af0.js" />
+<file href="scormcontent/lib/rise/47f55973.js" />
+<file href="scormcontent/lib/rise/a95f77c6.js" />
+<file href="scormcontent/lib/rise/20832720.js" />
+<file href="scormcontent/lib/rise/54fd4307.js" />
+<file href="scormcontent/lib/rise/8716f7be.js" />
+<file href="scormcontent/lib/rise/b7302d3e.js" />
+<file href="scormcontent/lib/rise/cfa9ae74.js" />
+<file href="scormcontent/lib/rise/fc604295.js" />
+<file href="scormcontent/lib/learn_dist/entry.js" />
+<file href="scormcontent/lib/learn_dist/5515a099.js" />
+<file href="scormcontent/lib/learn_dist/91a2b501.css" />
+<file href="scormcontent/lib/learn_dist/f4adaa3f.js" />
+<file href="scormcontent/lib/mondrian/entry.js" />
+<file href="scormcontent/lib/mondrian/cf0a2771.js" />
+<file href="scormcontent/lib/mondrian/0d1ab473.js" />
+<file href="scormcontent/lib/mondrian/bede2d12.js" />
+<file href="scormcontent/lib/mondrian/09e37aee.js" />
+<file href="scormcontent/lib/mondrian/196251cf.js" />
+<file href="scormcontent/lib/sandbox/sandbox.html" />
+<file href="scormcontent/lib/sandbox/c77685df.js" />
+<file href="scormcontent/lib/sandbox/4adfab46.css" />
+
+
+      <!-- RUNTIME CONTENT STUFF -->
+      <file href="scormcontent/lib/fonts/Poppins-BoldItalic.woff" />
+<file href="scormcontent/lib/fonts/Poppins-Bold.woff" />
+<file href="scormcontent/lib/fonts/Poppins-SemiBoldItalic.woff" />
+<file href="scormcontent/lib/fonts/Poppins-SemiBold.woff" />
+<file href="scormcontent/lib/fonts/Poppins-Italic.woff" />
+<file href="scormcontent/lib/fonts/Poppins-Regular.woff" />
+<file href="scormcontent/lib/fonts/Inter-Medium.woff" />
+<file href="scormcontent/lib/fonts/Inter-Black.woff" />
+<file href="scormcontent/lib/fonts/Inter-Bold.woff" />
+<file href="scormcontent/lib/fonts/Inter-Regular.woff" />
+<file href="scormcontent/lib/fonts/Inter-Light.woff" />
+<file href="scormcontent/assets/ICcZSBmJbuvQfonA.svg" />
+<file href="scormcontent/assets/W4Lbc3/mountains.jpg" />
+<file href="scormcontent/assets/JLmJW2ulvrlNy2-f.png" />
+<file href="scormcontent/assets/270maLtHJX67EpGG.jpg" />
+<file href="scormcontent/assets/Iu0h16zqwD_L5y7u.gif" />
+<file href="scormcontent/assets/dwx2ynwYERCbIJ0W.svg" />
+<file href="scormcontent/assets/4WNaM5XKAMa7aSVk.svg" />
+<file href="scormcontent/assets/mdH6k6xev96oXCdJ.svg" />
+<file href="scormcontent/assets/4gXOwTajrR__7Km2.svg" />
+<file href="scormcontent/assets/qkJurE-8GkJzD7_K.svg" />
+<file href="scormcontent/assets/NKpa-5Nhd7NduqYG.svg" />
+<file href="scormcontent/assets/r-x-s8EfCg5QFHeB.svg" />
+<file href="scormcontent/assets/cmlw7nfay000w074h7sgn88gz.gif" />
+<file href="scormcontent/assets/Lf-N796izgfUTnIp.png" />
+<file href="scormcontent/assets/cmlz3u9kt01j307vx4y9sgzhg.png" />
+<file href="scormcontent/assets/zXeXHbvkVB0ZZC6K.svg" />
+<file href="scormcontent/assets/Pze65v2RHiRz4iLX.png" />
+<file href="scormcontent/assets/cmlz2zgn9003z07vj5ma92v4g.png" />
+<file href="scormcontent/assets/cmlw79fks01a807649ck80mzo.gif" />
+<file href="scormcontent/assets/jaKsHH-l_qYhFHNO.jpg" />
+<file href="scormcontent/assets/X-_T6tfeauKabVWQ7W.svg" />
+<file href="scormcontent/assets/cmlw6zk7t000i074h4urc968u.gif" />
+<file href="scormcontent/assets/cmlyogmkx00k307vxbydm9bzz.jpg" />
+<file href="scormcontent/assets/Qcr-mU/cmlyofu3200v2077n8el02qgf.png" />
+<file href="scormcontent/assets/cmlz2kvzb01eh07vx7tj0ctmn.svg" />
+<file href="scormcontent/assets/cmlz2kvyr002907vj59wp787t.svg" />
+<file href="scormcontent/assets/dgAcspCP5ssCdYyw.jpg" />
+<file href="scormcontent/assets/cmlw7irln018t07770up90avt.gif" />
+<file href="scormcontent/assets/cmlw7du2j01aa07643xogfqrs.gif" />
+<file href="scormcontent/assets/cmlqo47n100v307003kuf0giq.gif" />
+<file href="scormcontent/assets/cmlqo47n300v4070000ts8hmj.svg" />
+
+    </resource>
+  </resources>
+</manifest>

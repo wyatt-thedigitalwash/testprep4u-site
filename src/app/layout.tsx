@@ -17,6 +17,8 @@ const dm = DM_Sans({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
+  // REMOVE BEFORE LAUNCH — allows indexing once site is ready
+  robots: { index: false, follow: false },
   title: {
     default: "TestPrep4U | Insurance Exam Prep — Pass the First Time",
     template: "%s | TestPrep4U",

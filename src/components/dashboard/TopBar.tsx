@@ -1,15 +1,15 @@
 "use client";
 
 import { Menu } from "lucide-react";
-import { demoStudent } from "@/lib/mock-data";
 
 interface TopBarProps {
   title: string;
+  userName: string;
   onToggleSidebar: () => void;
 }
 
-export function TopBar({ title, onToggleSidebar }: TopBarProps) {
-  const initials = demoStudent.name
+export function TopBar({ title, userName, onToggleSidebar }: TopBarProps) {
+  const initials = userName
     .split(" ")
     .map((n) => n[0])
     .join("");
@@ -29,7 +29,7 @@ export function TopBar({ title, onToggleSidebar }: TopBarProps) {
 
       <div className="flex items-center gap-3">
         <span className="hidden text-sm font-medium text-gray-700 sm:block">
-          {demoStudent.name}
+          {userName}
         </span>
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white">
           {initials}

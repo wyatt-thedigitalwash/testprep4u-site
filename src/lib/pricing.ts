@@ -11,9 +11,9 @@ export interface PricingTier {
   accessMonths: number;
   hasGuarantee: boolean;
   prices: {
-    life: number; // ⚑ CLIENT ACTION REQUIRED: Confirm exact price
-    health: number; // ⚑ CLIENT ACTION REQUIRED: Confirm exact price
-    combined: number; // ⚑ CLIENT ACTION REQUIRED: Confirm exact price
+    life: number;
+    health: number;
+    combined: number;
   };
 }
 
@@ -33,7 +33,7 @@ export const PRICING_TIERS: PricingTier[] = [
     highlighted: false,
     accessMonths: 6,
     hasGuarantee: false,
-    prices: { life: 0, health: 0, combined: 0 }, // ⚑ CLIENT ACTION REQUIRED: Confirm pricing
+    prices: { life: 149, health: 149, combined: 179 },
     features: [
       { label: "Pre-licensing course content", included: true },
       { label: "Chapter quizzes", included: true },
@@ -60,7 +60,7 @@ export const PRICING_TIERS: PricingTier[] = [
     highlighted: true,
     accessMonths: 9,
     hasGuarantee: true,
-    prices: { life: 0, health: 0, combined: 0 }, // ⚑ CLIENT ACTION REQUIRED: Confirm pricing
+    prices: { life: 219, health: 219, combined: 259 },
     features: [
       { label: "Pre-licensing course content", included: true },
       { label: "Chapter quizzes", included: true },
@@ -87,7 +87,7 @@ export const PRICING_TIERS: PricingTier[] = [
     highlighted: false,
     accessMonths: 12,
     hasGuarantee: true,
-    prices: { life: 0, health: 0, combined: 0 }, // ⚑ CLIENT ACTION REQUIRED: Confirm pricing
+    prices: { life: 319, health: 319, combined: 369 },
     features: [
       { label: "Pre-licensing course content", included: true },
       { label: "Chapter quizzes", included: true },

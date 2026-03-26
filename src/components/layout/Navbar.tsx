@@ -8,7 +8,7 @@ import { Menu, X, ChevronDown } from "lucide-react";
 import { NAV_LINKS } from "@/lib/constants";
 import { Button } from "@/components/ui/Button";
 import { useScrolled } from "@/hooks/useScrolled";
-import { isAuthenticated } from "@/lib/auth";
+import { getSession } from "@/lib/supabase-auth";
 
 type NavLink = (typeof NAV_LINKS)[number];
 
@@ -19,7 +19,7 @@ export function Navbar() {
   const scrolled = useScrolled(50);
 
   useEffect(() => {
-    setLoggedIn(isAuthenticated());
+    getSession().then((session) => setLoggedIn(!!session));
   }, []);
 
   const isActive = (href: string) => pathname === href;
@@ -112,15 +112,33 @@ export function Navbar() {
           })}
         </ul>
 
-        {/* Desktop CTA — brand outline-dark */}
-        <div className="hidden lg:block">
-          <Button
-            href={loggedIn ? "/dashboard" : "/pricing"}
-            variant="outline-dark"
-            className="!px-5 !py-2 text-sm"
-          >
-            {loggedIn ? "Dashboard" : "Get Started"}
-          </Button>
+        {/* Desktop CTA */}
+        <div className="hidden items-center gap-6 lg:flex">
+          {loggedIn ? (
+            <Button
+              href="/dashboard"
+              variant="outline-dark"
+              className="!px-5 !py-2 text-sm"
+            >
+              Dashboard
+            </Button>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-sm font-medium text-blue-100 hover:text-white transition-colors"
+              >
+                Log In
+              </Link>
+              <Button
+                href="/pricing"
+                variant="outline-dark"
+                className="!px-5 !py-2 text-sm"
+              >
+                Get Started
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Mobile hamburger */}
@@ -184,14 +202,33 @@ export function Navbar() {
               );
             })}
           </ul>
-          <div className="mt-4">
-            <Button
-              href={loggedIn ? "/dashboard" : "/pricing"}
-              variant="outline-dark"
-              className="w-full text-sm"
-            >
-              {loggedIn ? "Dashboard" : "Get Started"}
-            </Button>
+          <div className="mt-4 space-y-3">
+            {loggedIn ? (
+              <Button
+                href="/dashboard"
+                variant="outline-dark"
+                className="w-full text-sm"
+              >
+                Dashboard
+              </Button>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="block rounded-md px-3 py-2 text-sm font-medium text-blue-100 transition-colors hover:bg-white/10 hover:text-white"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Log In
+                </Link>
+                <Button
+                  href="/pricing"
+                  variant="outline-dark"
+                  className="w-full text-sm"
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

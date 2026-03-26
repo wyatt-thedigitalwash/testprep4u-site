@@ -6,12 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpen,
-  ClipboardCheck,
   Settings,
   LogOut,
   X,
 } from "lucide-react";
-import { logout } from "@/lib/auth";
+import { logout } from "@/lib/supabase-auth";
 
 interface SidebarProps {
   open: boolean;
@@ -21,7 +20,6 @@ interface SidebarProps {
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Courses", href: "/dashboard/courses", icon: BookOpen },
-  { label: "Practice Exams", href: "/dashboard/exams", icon: ClipboardCheck },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -29,9 +27,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     router.push("/");
+    router.refresh();
   }
 
   const isActive = (href: string) => {

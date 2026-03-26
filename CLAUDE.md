@@ -126,12 +126,401 @@ public/
 └── ...
 ```
 
+### Phase 3 — Production Build
+
+Replaces the demo dashboard with real infrastructure. Supabase for auth, database, and storage. Stripe for payments. Real SCORM runtime tracking with Florida DFS compliance. Native quiz/exam engine. Auto-generated completion certificates with self-study affidavit and 3-year record retention.
+
+#### FL Life Insurance Course Structure (30-hour program)
+
+The course is organized into 6 course sections, each containing multiple SCORM modules (chapters). Part quizzes are SCORM-based and serve as progression gates. Practice Exam and Final Exam are **NOT SCORM** — they are built natively in the platform.
+
+```
+FL Life Insurance (30 hours, 24 SCORM modules)
+├── Section 0: Course Introduction
+│   └── Course Introduction                                    (SCORM module)
+├── Section 1: General Insurance Concepts
+│   ├── Ch 1: Purpose of Life Insurance                        (SCORM module)
+│   ├── Ch 2: The Insurance Industry                           (SCORM module)
+│   ├── Ch 3: Law and the Insurance Contract                   (SCORM module)
+│   ├── Ch 4: Licensure Ethics and the Insurance Producer      (SCORM module)
+│   └── Part 1 Quiz                                            (SCORM module — 70% gate)
+├── Section 2: Life Insurance Products
+│   ├── Ch 1: Life Insurance Policies                          (SCORM module)
+│   ├── Ch 2: Policy Provisions Options and Riders             (SCORM module)
+│   ├── Ch 3: Life Insurance Beneficiaries                     (SCORM module)
+│   ├── Ch 4: Life Insurance Premiums and Proceeds             (SCORM module)
+│   ├── Ch 5: Life Insurance Underwriting and Policy Issue     (SCORM module)
+│   ├── Ch 6: Group Life Insurance                             (SCORM module)
+│   ├── Ch 7: Annuities                                        (SCORM module)
+│   └── Part 2 Quiz                                            (SCORM module — 70% gate)
+├── Section 3: Social Security & Retirement
+│   ├── Ch 1: Social Security                                  (SCORM module)
+│   ├── Ch 2: Retirement Plans                                 (SCORM module)
+│   ├── Ch 3: Uses of Life Insurance                           (SCORM module)
+│   └── Part 3 Quiz                                            (SCORM module — 70% gate)
+├── Section 4: Florida Laws & Rules
+│   ├── Ch 1: FL Laws — Regulatory Foundations                 (SCORM module)
+│   ├── Ch 2: Florida Replacement Rule                         (SCORM module)
+│   ├── Ch 3: FL Laws — Variable Contracts                     (SCORM module)
+│   └── Part 4 Quiz                                            (SCORM module — 70% gate)
+├── Section 5: Exam Preparation
+│   ├── Preparing for the Course Exam                          (SCORM module)
+│   └── Preparing for the Florida State Exam                   (SCORM module)
+├── Practice Exam                                              (NATIVE — quiz engine, unlimited retakes)
+└── Final Exam (Course Exam)                                   (NATIVE — quiz engine, 70% to pass)
+```
+
+**Progression rules:**
+1. Modules within a section are sequential — must complete module N before accessing N+1
+2. Part quizzes require 70% to pass (unlimited retakes allowed)
+3. All sections (0–5) must be completed before Practice Exam unlocks
+4. Final Exam requires 70% to pass (unlimited retakes)
+5. Completion requires: all SCORM modules done + Final Exam passed + 30 hours logged
+
+**File organization on disk** (`docs/scorm/fl-life/`):
+```
+fl-life/
+├── part0/Course Introduction/              → SCORM 2004 package
+├── part1/
+│   ├── Chapter 1 Purpose of Life Insurance/
+│   ├── Chapter 2 The Insurance Industry/
+│   ├── Chapter 3 Law and the Insurance Contract/
+│   ├── Chapter 4 Licensure Ethics and the Insurance Producer/
+│   └── Part 1 Quiz/
+├── part2/
+│   ├── Chapter 1 Life Insurance Policies/
+│   ├── ... (7 chapters)
+│   └── Part 2 Quiz/
+├── part3/
+│   ├── Chapter 1 Social Security/
+│   ├── Chapter 2 Retirement Plans/
+│   ├── Chapter 3 Uses of Life Insurance/
+│   └── Part 3 Quiz/
+├── part4/
+│   ├── Chapter 1 FL Laws — Regulatory Foundations/
+│   ├── Chapter 2 Florida Replacement Rule/
+│   ├── Chapter 3 FL Laws — Variable Contracts/
+│   └── Part 4 Quiz/
+├── course-exam-prep/Preparing for the Course Exam/
+└── state-exam-readiness/Preparing for the Florida State Exam/
+```
+
+Each folder is a standalone SCORM 2004 3rd Edition package (Articulate Rise export) with its own `imsmanifest.xml`, `scormdriver/`, and `scormcontent/`.
+
+#### Database Schema (Supabase / PostgreSQL)
+
+All tables use Row Level Security (RLS). Users can only read/write their own data. Service role key used in API routes and webhooks for admin-level operations.
+
+**profiles**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, references `auth.users(id)` on delete cascade |
+| full_name | text | |
+| state | text | e.g. "FL" |
+| phone | text | nullable |
+| plan_tier | text | "essentials" / "pro" / "premium" |
+| stripe_customer_id | text | nullable, set on first checkout |
+| created_at | timestamptz | default `now()` |
+
+**courses**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| slug | text | unique, e.g. "fl-life" |
+| name | text | e.g. "Florida Life Insurance" |
+| type | text | "life" / "health" / "combined" |
+| state | text | e.g. "FL" |
+| required_hours | numeric | state-mandated minimum (30 for FL Life) |
+| active | boolean | default `true` |
+| created_at | timestamptz | default `now()` |
+
+**course_sections**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| course_id | uuid | references `courses(id)` on delete cascade |
+| section_number | integer | 0-indexed (0 = Course Introduction, 1–4 = Parts 1–4, 5 = Exam Prep) |
+| title | text | e.g. "General Insurance Concepts" |
+| sort_order | integer | display order |
+| | | unique constraint on `(course_id, section_number)` |
+
+**course_modules**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| section_id | uuid | references `course_sections(id)` on delete cascade |
+| module_type | text | "lesson" / "quiz" |
+| title | text | e.g. "Chapter 1: Purpose of Life Insurance" |
+| scorm_entry_path | text | path in Supabase Storage, e.g. "scorm/fl-life/part1/ch1/scormdriver/indexAPI.html" |
+| sort_order | integer | sequential within section |
+| quiz_pass_score | numeric | nullable, 70 for part quizzes, null for lessons |
+| | | unique constraint on `(section_id, sort_order)` |
+
+**enrollments**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| user_id | uuid | references `profiles(id)` on delete cascade |
+| course_id | uuid | references `courses(id)` |
+| status | text | "active" / "completed" / "expired" |
+| enrolled_at | timestamptz | default `now()` |
+| expires_at | timestamptz | based on plan tier (6/9/12 months) |
+| completed_at | timestamptz | nullable, set on course completion |
+| affidavit_accepted_at | timestamptz | nullable, when student signed self-study affidavit |
+
+**module_progress**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| enrollment_id | uuid | references `enrollments(id)` on delete cascade |
+| module_id | uuid | references `course_modules(id)` |
+| status | text | "not_started" / "in_progress" / "completed" |
+| cmi_data | jsonb | SCORM 2004 CMI data for this module |
+| completion_status | text | "not attempted" / "incomplete" / "completed" |
+| success_status | text | "unknown" / "passed" / "failed" |
+| score | numeric | nullable, 0–100 (quiz score) |
+| time_spent_seconds | integer | default `0` |
+| last_accessed | timestamptz | |
+| bookmark | text | nullable, SCORM bookmark/location |
+| completed_at | timestamptz | nullable |
+| | | unique constraint on `(enrollment_id, module_id)` |
+
+**exam_attempts**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| enrollment_id | uuid | references `enrollments(id)` on delete cascade |
+| exam_type | text | "practice" / "final" |
+| score | numeric | 0–100 |
+| total_questions | integer | |
+| correct_answers | integer | |
+| passed | boolean | score >= 70 for final |
+| time_spent_seconds | integer | |
+| answers | jsonb | `[{ question_id, selected, correct, topic }]` — for topic breakdown |
+| attempted_at | timestamptz | default `now()` |
+
+**time_logs**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| enrollment_id | uuid | references `enrollments(id)` on delete cascade |
+| module_id | uuid | nullable, references `course_modules(id)` — null for exam time |
+| started_at | timestamptz | |
+| ended_at | timestamptz | |
+| duration_seconds | integer | computed `ended_at - started_at`, capped at server |
+| source | text | "scorm" / "practice_exam" / "final_exam" |
+
+Audit-grade time log for Florida DFS compliance. Each row is a discrete session. `module_progress.time_spent_seconds` is the aggregated total per module. `time_logs` is the immutable audit trail. Records retained for 3 years minimum per Florida DFS requirements.
+
+**certificates**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| enrollment_id | uuid | references `enrollments(id)` on delete cascade, unique |
+| certificate_number | text | unique, generated (e.g. "TP4U-FL-LIFE-20260401-XXXX") |
+| issued_at | timestamptz | default `now()` |
+| hours_completed | numeric | total tracked hours at time of issuance |
+| pdf_url | text | path in Supabase Storage |
+
+**question_bank**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid | PK, default `gen_random_uuid()` |
+| course_id | uuid | references `courses(id)` on delete cascade |
+| topic | text | e.g. "Life Insurance Policies", "Annuities", "FL Laws" |
+| question_text | text | |
+| options | jsonb | `["Option A", "Option B", "Option C", "Option D"]` |
+| correct_index | integer | 0-based index into options array |
+| explanation | text | shown after answering |
+| exam_type | text | "practice" / "final" / "both" — which exams can draw this question |
+
+#### Auth
+
+- **Provider**: Supabase Auth with email/password sign-up
+- **Email verification**: Required before first login; verification email sent via Resend
+- **Password reset**: Supabase auth flow, reset email sent via Resend
+- **Profile creation**: Database trigger on `auth.users` insert creates a `profiles` row
+- **Session handling**: Supabase client-side auth with `@supabase/ssr` for cookie-based sessions in Next.js middleware
+- **Protected routes**: Middleware checks session for `/dashboard/*` routes, redirects to `/login` if unauthenticated
+
+#### Payments
+
+- **Provider**: Stripe Checkout Sessions
+- **Flow**: User selects a course + tier → redirected to Stripe Checkout → on success, redirected back to `/dashboard`
+- **Webhook**: `POST /api/webhooks/stripe` listens for `checkout.session.completed`
+  - Creates `enrollments` row with correct `expires_at` based on plan tier
+  - Sets `stripe_customer_id` on `profiles` if not already set
+  - Idempotent — checks for existing enrollment before creating
+- **Products**: One Stripe Product per course × tier combination (9 total at launch)
+- **Customer portal**: Link in settings page for subscription management (future recurring billing)
+
+#### SCORM
+
+- **Storage**: SCORM packages stored in Supabase Storage bucket (`scorm-packages`), one folder per module organized as `{course-slug}/{part}/{module-folder}/`
+- **Delivery**: Signed URL generated per session, loaded in iframe via `ScormViewer` component
+- **Runtime API**: SCORM 2004 API adapter in the iframe communicates with parent via `postMessage`
+  - `POST /api/scorm/progress` — persists `cmi_data`, `completion_status`, `success_status`, `score`, `bookmark` to `module_progress`
+  - `POST /api/scorm/time` — creates a `time_logs` row and increments `module_progress.time_spent_seconds`
+- **Each SCORM module** is a standalone Articulate Rise package (SCORM 2004 3rd Edition) with its own `imsmanifest.xml`
+- **Part quizzes** are SCORM modules that report scores via the SCORM API. The platform checks `score >= quiz_pass_score` (70%) to gate progression to the next section
+
+#### Quiz & Exam Engine (Native)
+
+Practice Exam and Final Exam are **NOT delivered via SCORM**. They are built natively in the platform using the `question_bank` table.
+
+- **Question bank**: Imported per course, tagged by topic and exam type
+- **Practice Exam**: Draws questions from the bank (tagged "practice" or "both"), unlimited retakes, shows explanations after each question, score breakdown by topic. Available after all SCORM sections complete
+- **Final Exam (Course Exam)**: Draws questions from the bank (tagged "final" or "both"), 70% passing score, unlimited retakes, timed. Must pass to complete the course
+- **Exam attempts** logged in `exam_attempts` with full answer data for topic breakdown analysis
+- **Time tracking**: Exam time logged to `time_logs` with `source = "practice_exam"` or `"final_exam"`
+
+#### Progression Logic
+
+Sequential progression through the entire course:
+
+1. **Within a section**: Modules unlock one at a time. Must complete module N (SCORM `completion_status = "completed"`) before module N+1 becomes available
+2. **Part quizzes as gates**: Each part's quiz is the last module in its section. Must score ≥ 70% (`module_progress.score >= course_modules.quiz_pass_score`) to unlock the next section. Unlimited retakes allowed
+3. **Section-to-section**: Must complete all modules in section N (including passing the part quiz) before section N+1 unlocks
+4. **Practice Exam**: Unlocks after all SCORM sections (0–5) are complete. Not required but recommended
+5. **Final Exam**: Unlocks after all SCORM sections (0–5) are complete. Must pass with ≥ 70%
+6. **Course completion** requires ALL of:
+   - All SCORM modules have `status = "completed"` in `module_progress`
+   - All part quizzes passed (score ≥ 70%)
+   - Final Exam passed (score ≥ 70% in `exam_attempts`)
+   - Total tracked time ≥ `courses.required_hours` (30 hours for FL Life), calculated as `sum(time_logs.duration_seconds)` for the enrollment
+   - Self-study affidavit accepted (`enrollments.affidavit_accepted_at` is not null)
+
+#### Time Tracking (Florida DFS Compliance)
+
+Florida Department of Financial Services requires students to complete the mandated hours. Time tracking must be audit-grade:
+
+- **Granular logging**: Every study session creates a `time_logs` row with `started_at`, `ended_at`, `duration_seconds`, and `source`
+- **Server-side validation**: Max session duration capped at reasonable limits (e.g., 4 hours) to prevent clock manipulation. Idle detection on the client sends heartbeats; if no heartbeat received for > 5 minutes, the session is ended server-side
+- **Aggregation**: `module_progress.time_spent_seconds` is the running total per module. Total course hours = `sum(time_logs.duration_seconds) / 3600` across the enrollment
+- **Minimum hours check**: Course completion is blocked until total hours ≥ `courses.required_hours`
+- **3-year record retention**: `time_logs`, `exam_attempts`, `certificates`, and `enrollments` rows are never deleted. Soft-delete only. A scheduled job or Supabase Edge Function can archive records older than 3 years but must not destroy them
+
+#### Self-Study Affidavit
+
+Before receiving the completion certificate, the student must accept a self-study affidavit:
+
+- Presented as a modal/page after all completion criteria are met (all modules done, final exam passed, hours logged)
+- Text: Attestation that the student personally completed all coursework (exact legal text TBD — client action required)
+- Student checks a box and submits → `enrollments.affidavit_accepted_at` is set
+- Only after acceptance does the certificate generate
+
+#### Certificates
+
+- **Trigger**: Auto-generated when all completion criteria are satisfied (modules + final exam + hours + affidavit)
+- **PDF generation**: Server-side using a PDF library (e.g. `@react-pdf/renderer` or `pdf-lib`)
+- **Contents**: Student name, course name, state, hours completed, completion date, certificate number
+- **Storage**: PDF uploaded to Supabase Storage bucket (`certificates`), URL saved to `certificates.pdf_url`
+- **Access**: Download link on course detail page and settings page
+- **Retention**: Certificate records retained for 3 years minimum per Florida DFS requirements
+
+#### API Routes
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/scorm/progress` | POST | Persist SCORM CMI data, completion/success status, score, bookmark to `module_progress` |
+| `/api/scorm/time` | POST | Create `time_logs` row, increment `module_progress.time_spent_seconds` |
+| `/api/exams/start` | POST | Generate an exam instance (draw questions from bank), return questions |
+| `/api/exams/submit` | POST | Score the exam, create `exam_attempts` row, log time |
+| `/api/exams/[attemptId]` | GET | Retrieve a past exam attempt with answers and explanations |
+| `/api/enrollments` | GET | List current user's enrollments with course/section/module progress |
+| `/api/enrollments/[id]/progress` | GET | Full progression state for an enrollment (all modules, exams, time) |
+| `/api/enrollments/[id]/affidavit` | POST | Accept self-study affidavit, trigger certificate generation |
+| `/api/certificates` | GET | List/download current user's certificates |
+| `/api/checkout` | POST | Create Stripe Checkout Session for a course + tier |
+| `/api/webhooks/stripe` | POST | Handle `checkout.session.completed`, create enrollment |
+
+All API routes (except the Stripe webhook) require authenticated Supabase session. The Stripe webhook verifies the `stripe-signature` header using `STRIPE_WEBHOOK_SECRET`.
+
+#### Environment Variables
+
+```
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+
+# Email
+RESEND_API_KEY=
+```
+
+All values set in Vercel environment settings. `NEXT_PUBLIC_` vars are exposed to the browser. `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `RESEND_API_KEY` are server-only.
+
+#### Project Structure (Phase 3 additions)
+
+```
+src/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/page.tsx              # Supabase auth (already built)
+│   │   ├── signup/page.tsx             # Registration (already built)
+│   │   ├── forgot-password/page.tsx    # Password reset request (already built)
+│   │   └── reset-password/page.tsx     # New password form (already built)
+│   ├── auth/callback/route.ts          # Supabase email confirm + reset redirect (already built)
+│   ├── dashboard/
+│   │   ├── courses/[courseId]/
+│   │   │   ├── modules/[moduleId]/
+│   │   │   │   └── page.tsx            # SCORM viewer for a specific module
+│   │   │   ├── exams/
+│   │   │   │   ├── practice/page.tsx   # Practice exam (native quiz engine)
+│   │   │   │   └── final/page.tsx      # Final exam (native quiz engine)
+│   │   │   └── affidavit/page.tsx      # Self-study affidavit acceptance
+│   │   └── ...
+│   └── api/
+│       ├── scorm/
+│       │   ├── progress/route.ts       # SCORM CMI data → module_progress
+│       │   └── time/route.ts           # Time tracking → time_logs + module_progress
+│       ├── exams/
+│       │   ├── start/route.ts          # Draw questions, return exam instance
+│       │   ├── submit/route.ts         # Score exam, create exam_attempts row
+│       │   └── [attemptId]/route.ts    # Retrieve past attempt
+│       ├── enrollments/
+│       │   ├── route.ts                # List enrollments
+│       │   └── [id]/
+│       │       ├── progress/route.ts   # Full progression state
+│       │       └── affidavit/route.ts  # Accept affidavit, trigger cert
+│       ├── certificates/route.ts       # List/download certificates
+│       ├── checkout/route.ts           # Stripe Checkout Session (already built)
+│       └── webhooks/
+│           └── stripe/route.ts         # Stripe webhook (already built)
+├── components/
+│   └── dashboard/
+│       ├── ScormViewer.tsx             # SCORM iframe wrapper with postMessage bridge
+│       ├── ExamRunner.tsx              # Native quiz engine component
+│       ├── ProgressTimeline.tsx        # Section/module progression visualization
+│       └── AffidavitModal.tsx          # Self-study affidavit acceptance UI
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts                   # Browser Supabase client (already built)
+│   │   └── server.ts                   # Server + admin Supabase clients (already built)
+│   ├── stripe.ts                       # Stripe client + price ID map (already built)
+│   ├── supabase-auth.ts               # Auth helpers (already built)
+│   ├── certificates.ts                 # PDF generation + upload logic
+│   ├── scorm-api.ts                    # SCORM 2004 runtime adapter (postMessage bridge)
+│   ├── exam-engine.ts                  # Question selection, scoring, topic breakdown
+│   └── progression.ts                  # Module unlock logic, completion checks, time validation
+├── middleware.ts                        # Auth session check (already built)
+└── ...
+supabase/
+├── migrations/
+│   ├── 001_initial_schema.sql          # All tables, RLS policies, triggers
+│   └── 002_course_structure.sql        # course_sections, course_modules, question_bank tables
+└── seed.sql                            # FL Life course sections, modules, question bank
+```
+
 ### Future Phases (do NOT build yet, but keep architecture compatible)
 
-- **Phase 3**: Supabase auth (replace demo auth), Stripe checkout, real enrollment flow
-- **Phase 4**: SCORM course hosting via Supabase Storage, SCORM runtime API, real progress tracking
-- **Phase 5**: Admin dashboard (student management, course uploads, analytics)
-- **Phase 6**: Manager/affiliate portal (discount codes, referral tracking, manager dashboards)
+- **Phase 4**: Admin dashboard (student management, course uploads, analytics)
+- **Phase 5**: Manager/affiliate portal (discount codes, referral tracking, manager dashboards)
 
 ---
 
@@ -142,11 +531,12 @@ public/
 - **Styling**: Tailwind CSS 4 (CSS-based `@theme` configuration)
 - **Fonts**: Plus Jakarta Sans (display/headlines), DM Sans (body/UI) — via `next/font/google`
 - **Icons**: Lucide React
-- **Forms/Email**: Resend (for contact form, email capture)
+- **Forms/Email**: Resend (for contact form, email capture, auth emails)
+- **Auth**: Supabase Auth (email/password) with `@supabase/ssr`
+- **Database**: Supabase (PostgreSQL) with Row Level Security
+- **Storage**: Supabase Storage (SCORM packages, certificates)
+- **Payments**: Stripe (Checkout Sessions, webhooks)
 - **Deployment**: Vercel via GitHub auto-deploy
-- **Future Auth**: Supabase (not yet implemented)
-- **Future Payments**: Stripe (not yet implemented)
-- **Future Storage**: Supabase Storage for SCORM packages (not yet implemented)
 
 ---
 
@@ -742,3 +1132,4 @@ All prices below are **CLIENT ACTION REQUIRED — confirm exact amounts before b
 - **No hover:scale effects on buttons.** Use glow shadows and color transitions only.
 - **fadeUp inline styles override Tailwind hover.** Any component using `fadeUp()` that also needs hover effects MUST implement the `entranceDone` pattern to clear inline styles after animation.
 - **Navbar CTA padding requires `!important`.** The outline-dark variant has `py-3.5` baked in; the navbar overrides it with `!py-2`.
+- **Search engines are blocked until launch.** `public/robots.txt` disallows all crawlers and root layout metadata sets `noindex, nofollow`. Both contain "REMOVE BEFORE LAUNCH" comments. Delete the robots disallow rule and remove the `robots` metadata field before going live.

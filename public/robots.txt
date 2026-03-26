@@ -1,0 +1,3 @@
+# REMOVE BEFORE LAUNCH
+User-agent: *
+Disallow: /

@@ -1,7 +1,7 @@
-// SCORM 2004 Runtime API implementation for demo dashboard.
-// Implements the API_1484_11 interface that SCORM content discovers on parent windows.
-// Stores CMI data model values in memory with optional localStorage persistence.
-// All API calls are logged to console for debugging.
+// SCORM 2004 Runtime API (API_1484_11) for the student dashboard.
+// Implements the full CMI data model that Articulate Rise 360 uses.
+// Supports resume via initial data, server-save callbacks on Commit/Terminate,
+// and proper total_time accumulation across sessions.
 
 export interface ScormData {
   [key: string]: string;
@@ -16,13 +16,26 @@ export interface ScormSessionSummary {
   scoreMax: string;
   location: string;
   sessionTime: string;
+  totalTime: string;
+  suspendData: string;
   totalInteractions: number;
   allData: ScormData;
 }
 
-const STORAGE_KEY = "tp4u_scorm_cmi";
+export interface ScormAPIOptions {
+  /** Previously saved CMI data (from module_progress.cmi_data) for resume */
+  initialData?: ScormData;
+  /** Supabase user ID */
+  learnerId?: string;
+  /** Display name in "Last, First" format */
+  learnerName?: string;
+  /** Called on every Commit() — use for intermediate server saves */
+  onCommit?: (summary: ScormSessionSummary) => void;
+  /** Called on Terminate() — use for final server save */
+  onTerminate?: (summary: ScormSessionSummary) => void;
+}
 
-// Default CMI data model values (SCORM 2004)
+// Default CMI data model values (SCORM 2004 3rd Edition)
 const CMI_DEFAULTS: ScormData = {
   "cmi.completion_status": "unknown",
   "cmi.completion_threshold": "",
@@ -30,8 +43,8 @@ const CMI_DEFAULTS: ScormData = {
   "cmi.entry": "ab-initio",
   "cmi.exit": "",
   "cmi.launch_data": "",
-  "cmi.learner_id": "demo-001",
-  "cmi.learner_name": "Johnson, Alex",
+  "cmi.learner_id": "",
+  "cmi.learner_name": "",
   "cmi.location": "",
   "cmi.max_time_allowed": "",
   "cmi.mode": "normal",
@@ -73,32 +86,95 @@ const WRITE_ONLY = new Set([
   "cmi.session_time",
 ]);
 
+/** Parse ISO 8601 duration (PTxHxMxS) to total seconds */
+function parseDuration(iso: string): number {
+  if (!iso) return 0;
+  const match = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/);
+  if (!match) return 0;
+  const h = parseInt(match[1] || "0", 10);
+  const m = parseInt(match[2] || "0", 10);
+  const s = parseFloat(match[3] || "0");
+  return h * 3600 + m * 60 + s;
+}
+
+/** Convert seconds to ISO 8601 duration (PTxHxMxS) */
+function toDuration(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.round((totalSeconds % 60) * 100) / 100;
+  let result = "PT";
+  if (h > 0) result += `${h}H`;
+  if (m > 0) result += `${m}M`;
+  if (s > 0 || result === "PT") result += `${s}S`;
+  return result;
+}
+
 export class ScormAPI {
   private data: ScormData;
-  private initialized: boolean = false;
-  private terminated: boolean = false;
-  private lastError: string = "0";
-  private interactionCount: number = 0;
+  private initialized = false;
+  private terminated = false;
+  private lastError = "0";
+  private interactionCount = 0;
+  private previousTotalSeconds = 0;
+  private onCommit?: (summary: ScormSessionSummary) => void;
+  private onTerminate?: (summary: ScormSessionSummary) => void;
 
-  constructor() {
-    // Try to restore from localStorage
-    const stored = typeof window !== "undefined"
-      ? localStorage.getItem(STORAGE_KEY)
-      : null;
+  constructor(options: ScormAPIOptions = {}) {
+    const { initialData, learnerId, learnerName, onCommit, onTerminate } = options;
 
-    if (stored) {
-      try {
-        this.data = { ...CMI_DEFAULTS, ...JSON.parse(stored) };
-        // If resuming, update entry
-        if (this.data["cmi.exit"] === "suspend") {
-          this.data["cmi.entry"] = "resume";
-        }
-      } catch {
-        this.data = { ...CMI_DEFAULTS };
+    this.onCommit = onCommit;
+    this.onTerminate = onTerminate;
+
+    // Start from defaults
+    this.data = { ...CMI_DEFAULTS };
+
+    // Apply saved CMI data for resume
+    if (initialData && Object.keys(initialData).length > 0) {
+      // Merge saved data on top of defaults
+      for (const [key, value] of Object.entries(initialData)) {
+        this.data[key] = value;
       }
+
+      // Track previous total_time for accumulation on Terminate
+      this.previousTotalSeconds = parseDuration(
+        this.data["cmi.total_time"] || "PT0S"
+      );
+
+      // Set entry to "resume" if previous session was suspended
+      if (this.data["cmi.exit"] === "suspend") {
+        this.data["cmi.entry"] = "resume";
+      } else if (
+        this.data["cmi.completion_status"] !== "completed" &&
+        this.data["cmi.completion_status"] !== "unknown"
+      ) {
+        // Content was started but not suspended — still resuming
+        this.data["cmi.entry"] = "resume";
+      }
+
+      // Reset session_time for the new session
+      this.data["cmi.session_time"] = "";
+      // Reset exit for the new session
+      this.data["cmi.exit"] = "";
+
+      // Restore interaction count
+      const countStr = this.data["cmi.interactions._count"] || "0";
+      this.interactionCount = parseInt(countStr, 10) || 0;
+
+      console.log(
+        "%c[SCORM API] Resuming session — loaded saved CMI data",
+        "color: #447FF0; font-weight: bold",
+        `(entry: ${this.data["cmi.entry"]}, total_time: ${this.data["cmi.total_time"]})`
+      );
     } else {
-      this.data = { ...CMI_DEFAULTS };
+      console.log(
+        "%c[SCORM API] New session — no saved data",
+        "color: #447FF0; font-weight: bold"
+      );
     }
+
+    // Set real learner info
+    if (learnerId) this.data["cmi.learner_id"] = learnerId;
+    if (learnerName) this.data["cmi.learner_name"] = learnerName;
   }
 
   Initialize(_param: string): string {
@@ -134,11 +210,25 @@ export class ScormAPI {
       return "false";
     }
 
+    // Accumulate total_time = previous total + this session
+    const sessionSeconds = parseDuration(
+      this.data["cmi.session_time"] || "PT0S"
+    );
+    const newTotalSeconds = this.previousTotalSeconds + sessionSeconds;
+    this.data["cmi.total_time"] = toDuration(newTotalSeconds);
+
+    console.log(
+      `%c[SCORM API] Total time updated: ${this.data["cmi.total_time"]} (session: ${this.data["cmi.session_time"]})`,
+      "color: #10b981; font-weight: bold"
+    );
+
     this.terminated = true;
     this.lastError = "0";
 
-    // Persist to localStorage
-    this.persist();
+    // Fire terminate callback for server save
+    if (this.onTerminate) {
+      this.onTerminate(this.getSessionSummary());
+    }
 
     return "true";
   }
@@ -163,7 +253,7 @@ export class ScormAPI {
     this.lastError = "0";
 
     console.log(
-      `%c[SCORM API] GetValue("${element}") → "${value}"`,
+      `%c[SCORM API] GetValue("${element}") → "${value.length > 100 ? value.slice(0, 100) + "…" : value}"`,
       "color: #10b981"
     );
 
@@ -198,21 +288,41 @@ export class ScormAPI {
       }
     }
 
-    // Style important values differently
+    // Track objective count
+    if (element.match(/^cmi\.objectives\.\d+\./)) {
+      const idx = parseInt(element.split(".")[2], 10);
+      const currentCount = parseInt(this.data["cmi.objectives._count"] || "0", 10);
+      if (idx >= currentCount) {
+        this.data["cmi.objectives._count"] = String(idx + 1);
+      }
+    }
+
+    // Color-coded logging — highlight important values
     const isKey = [
       "cmi.completion_status",
       "cmi.success_status",
       "cmi.score.raw",
       "cmi.score.scaled",
       "cmi.location",
+      "cmi.exit",
+      "cmi.session_time",
     ].includes(element);
 
-    console.log(
-      `%c[SCORM API] SetValue("${element}", "${value}")`,
-      isKey
-        ? "color: #f59e0b; font-weight: bold"
-        : "color: #64748b"
-    );
+    const isSuspendData = element === "cmi.suspend_data";
+
+    if (isSuspendData) {
+      console.log(
+        `%c[SCORM API] SetValue("cmi.suspend_data", "[${value.length} chars]")`,
+        "color: #8b5cf6"
+      );
+    } else {
+      console.log(
+        `%c[SCORM API] SetValue("${element}", "${value}")`,
+        isKey
+          ? "color: #f59e0b; font-weight: bold"
+          : "color: #64748b"
+      );
+    }
 
     return "true";
   }
@@ -229,7 +339,12 @@ export class ScormAPI {
     );
 
     this.lastError = "0";
-    this.persist();
+
+    // Fire commit callback for intermediate server save
+    if (this.onCommit) {
+      this.onCommit(this.getSessionSummary());
+    }
+
     return "true";
   }
 
@@ -273,7 +388,7 @@ export class ScormAPI {
     return "";
   }
 
-  // Get a summary of the session for display in the UI
+  /** Get a snapshot of the current session state for saving/display */
   getSessionSummary(): ScormSessionSummary {
     return {
       completionStatus: this.data["cmi.completion_status"] || "unknown",
@@ -284,26 +399,10 @@ export class ScormAPI {
       scoreMax: this.data["cmi.score.max"] || "",
       location: this.data["cmi.location"] || "",
       sessionTime: this.data["cmi.session_time"] || "",
+      totalTime: this.data["cmi.total_time"] || "PT0S",
+      suspendData: this.data["cmi.suspend_data"] || "",
       totalInteractions: this.interactionCount,
       allData: { ...this.data },
     };
-  }
-
-  // Reset all data (for testing)
-  reset(): void {
-    this.data = { ...CMI_DEFAULTS };
-    this.initialized = false;
-    this.terminated = false;
-    this.lastError = "0";
-    this.interactionCount = 0;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }
-
-  private persist(): void {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
-    }
   }
 }

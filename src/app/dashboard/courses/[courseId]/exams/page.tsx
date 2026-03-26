@@ -1,34 +1,43 @@
-"use client";
-
-import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp } from "lucide-react";
-import { getCourse, getExamAttempts, getTopicBreakdown } from "@/lib/mock-data";
+import { redirect } from "next/navigation";
+import { getExamAttempts } from "@/lib/course-data";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ScoreTrend } from "@/components/dashboard/ScoreTrend";
 import { ExamHistory } from "@/components/dashboard/ExamHistory";
-import { TopicBreakdown } from "@/components/dashboard/TopicBreakdown";
 
-export default function ExamResultsPage() {
-  const { courseId } = useParams<{ courseId: string }>();
+interface Props {
+  params: Promise<{ courseId: string }>;
+}
 
-  const course = getCourse(courseId);
-  const attempts = getExamAttempts(courseId);
-  const topics = getTopicBreakdown(courseId);
-  const latestScore = attempts.length > 0 ? attempts[attempts.length - 1].score : null;
+export default async function ExamResultsPage({ params }: Props) {
+  const { courseId } = await params;
+  const supabase = await createServerSupabaseClient();
 
-  if (!course) {
-    return (
-      <div className="mx-auto max-w-5xl">
-        <p className="text-sm text-gray-500">Course not found.</p>
-        <Link
-          href="/dashboard"
-          className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-blue-500"
-        >
-          <ArrowLeft size={16} /> Back to Dashboard
-        </Link>
-      </div>
-    );
-  }
+  // Get course name
+  const { data: course } = await supabase
+    .from("courses")
+    .select("name")
+    .eq("slug", courseId)
+    .single();
+
+  if (!course) redirect("/dashboard");
+
+  const allAttempts = await getExamAttempts(courseId);
+  const practiceAttempts = allAttempts.filter((a) => a.examType === "practice");
+
+  // Adapt to ExamHistory component's expected shape
+  const attemptsForHistory = practiceAttempts.map((a, i) => ({
+    id: i + 1,
+    date: a.attemptedAt,
+    score: a.score,
+    totalQuestions: a.totalQuestions,
+  }));
+
+  const latestScore =
+    practiceAttempts.length > 0
+      ? practiceAttempts[practiceAttempts.length - 1].score
+      : null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -87,27 +96,30 @@ export default function ExamResultsPage() {
       )}
 
       {/* Score trend */}
-      <ScoreTrend attempts={attempts} />
+      <ScoreTrend attempts={attemptsForHistory} />
 
       {/* Exam history */}
       <div>
         <h3 className="mb-4 font-display text-lg font-semibold text-navy">
           Attempt History
         </h3>
-        <ExamHistory attempts={attempts} />
+        <ExamHistory attempts={attemptsForHistory} />
       </div>
 
-      {/* Topic breakdown */}
-      <TopicBreakdown topics={topics} />
-
-      {/* Take exam button (placeholder) */}
-      <div className="flex justify-center">
-        <button
-          disabled
-          className="inline-flex items-center justify-center rounded-lg bg-blue-500 px-8 py-3 font-body text-sm font-bold text-white opacity-50 shadow-sm"
+      {/* Take exam buttons */}
+      <div className="flex flex-wrap justify-center gap-4">
+        <Link
+          href={`/dashboard/courses/${courseId}/practice-exam`}
+          className="inline-flex items-center justify-center rounded-lg bg-blue-500 px-8 py-3 font-body text-sm font-bold text-white shadow-sm transition-all duration-300 ease-out hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)]"
         >
-          Take Practice Exam (Coming Soon)
-        </button>
+          Take Practice Exam
+        </Link>
+        <Link
+          href={`/dashboard/courses/${courseId}/final-exam`}
+          className="inline-flex items-center justify-center rounded-lg border-2 border-blue-500 px-8 py-3 font-body text-sm font-bold text-blue-500 transition-all duration-300 hover:bg-blue-500 hover:text-white"
+        >
+          Take Final Exam
+        </Link>
       </div>
     </div>
   );

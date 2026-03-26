@@ -1,4 +1,9 @@
-import type { ExamAttempt } from "@/lib/mock-data";
+interface ExamAttempt {
+  id: number;
+  date: string;
+  score: number;
+  totalQuestions: number;
+}
 
 interface ExamHistoryProps {
   attempts: ExamAttempt[];

@@ -1,8 +1,23 @@
 import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
-import { courses, getExamAttempts } from "@/lib/mock-data";
+import { getUserEnrollments, getExamAttempts } from "@/lib/course-data";
 
-export default function ExamsIndexPage() {
+export default async function ExamsIndexPage() {
+  const enrollments = await getUserEnrollments();
+
+  // Fetch exam attempts for each enrollment
+  const coursesWithAttempts = await Promise.all(
+    enrollments.map(async (e) => {
+      const attempts = await getExamAttempts(e.courseSlug);
+      const practiceAttempts = attempts.filter((a) => a.examType === "practice");
+      const latestScore =
+        practiceAttempts.length > 0
+          ? practiceAttempts[practiceAttempts.length - 1].score
+          : null;
+      return { enrollment: e, attemptCount: practiceAttempts.length, latestScore };
+    })
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
@@ -14,16 +29,16 @@ export default function ExamsIndexPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {courses.map((course) => {
-          const attempts = getExamAttempts(course.id);
-          const latestScore =
-            attempts.length > 0 ? attempts[attempts.length - 1].score : null;
-
-          return (
+      {coursesWithAttempts.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
+          No enrolled courses yet.
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {coursesWithAttempts.map(({ enrollment, attemptCount, latestScore }) => (
             <Link
-              key={course.id}
-              href={`/dashboard/courses/${course.id}/exams`}
+              key={enrollment.enrollmentId}
+              href={`/dashboard/courses/${enrollment.courseSlug}/exams`}
               className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg"
             >
               <div className="flex items-center gap-3">
@@ -32,20 +47,18 @@ export default function ExamsIndexPage() {
                 </div>
                 <div>
                   <h3 className="font-display text-sm font-semibold text-navy">
-                    {course.name}
+                    {enrollment.courseName}
                   </h3>
                   <p className="text-xs text-gray-500">
-                    {attempts.length} attempt{attempts.length !== 1 ? "s" : ""}
-                    {latestScore !== null && (
-                      <> &middot; Latest: {latestScore}%</>
-                    )}
+                    {attemptCount} attempt{attemptCount !== 1 ? "s" : ""}
+                    {latestScore !== null && <> &middot; Latest: {latestScore}%</>}
                   </p>
                 </div>
               </div>
             </Link>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

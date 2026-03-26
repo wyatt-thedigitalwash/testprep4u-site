@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, X, Sparkles } from "lucide-react";
 import {
   PRICING_TIERS,
@@ -8,20 +9,40 @@ import {
   type CourseType,
   type PricingTier,
 } from "@/lib/pricing";
-import { Button } from "@/components/ui/Button";
 import { useInView } from "@/hooks/useInView";
 import { fadeUp } from "@/lib/animations";
+
+const VALID_COURSE_TYPES: CourseType[] = ["life", "health", "combined"];
 
 interface PricingCardsProps {
   courseType?: CourseType;
   showToggle?: boolean;
 }
 
-export function PricingCards({
+export function PricingCards(props: PricingCardsProps) {
+  return (
+    <Suspense>
+      <PricingCardsInner {...props} />
+    </Suspense>
+  );
+}
+
+function PricingCardsInner({
   courseType: initialType = "life",
   showToggle = true,
 }: PricingCardsProps) {
-  const [courseType, setCourseType] = useState<CourseType>(initialType);
+  const searchParams = useSearchParams();
+  const courseParam = searchParams.get("course") as CourseType | null;
+  const planParam = searchParams.get("plan");
+  const autoCheckout = searchParams.get("autoCheckout") === "true";
+
+  // Use URL course param if valid, otherwise fall back to prop
+  const resolvedInitial =
+    courseParam && VALID_COURSE_TYPES.includes(courseParam)
+      ? courseParam
+      : initialType;
+
+  const [courseType, setCourseType] = useState<CourseType>(resolvedInitial);
   const { ref, isInView } = useInView<HTMLDivElement>({ threshold: 0.05 });
 
   return (
@@ -60,6 +81,7 @@ export function PricingCards({
               courseType={courseType}
               isInView={isInView}
               delay={150 + i * 100}
+              autoCheckout={autoCheckout && tier.slug === planParam}
             />
           ))}
         </div>
@@ -75,11 +97,69 @@ interface TierCardProps {
   courseType: CourseType;
   isInView: boolean;
   delay: number;
+  autoCheckout?: boolean;
 }
 
-function TierCard({ tier, courseType, isInView, delay }: TierCardProps) {
+function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardProps) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const autoCheckoutFired = useRef(false);
   const price = tier.prices[courseType];
   const isHighlighted = tier.highlighted;
+
+  const handleCheckout = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: tier.slug, courseType }),
+      });
+      const data = await res.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else if (res.status === 401) {
+        // Not logged in — redirect to signup with plan context
+        localStorage.setItem(
+          "pendingCheckout",
+          JSON.stringify({ plan: tier.slug, course: courseType })
+        );
+        router.push(`/signup?plan=${tier.slug}&course=${courseType}`);
+      } else {
+        console.error("Checkout error:", data.error);
+        setLoading(false);
+      }
+    } catch {
+      setLoading(false);
+    }
+  }, [tier.slug, courseType, router]);
+
+  // Auto-checkout on mount when URL params indicate returning from auth
+  useEffect(() => {
+    if (autoCheckout && !autoCheckoutFired.current && price > 0) {
+      autoCheckoutFired.current = true;
+      handleCheckout();
+    }
+  }, [autoCheckout, price, handleCheckout]);
+
+  // localStorage fallback: if user lands on /pricing with pendingCheckout
+  // but no URL params, redirect to self with params
+  useEffect(() => {
+    if (autoCheckoutFired.current) return;
+    try {
+      const stored = localStorage.getItem("pendingCheckout");
+      if (!stored) return;
+      const { plan, course } = JSON.parse(stored);
+      if (plan === tier.slug && course === courseType) {
+        localStorage.removeItem("pendingCheckout");
+        autoCheckoutFired.current = true;
+        handleCheckout();
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, [tier.slug, courseType, handleCheckout]);
 
   return (
     <div
@@ -164,13 +244,13 @@ function TierCard({ tier, courseType, isInView, delay }: TierCardProps) {
 
       {/* CTA */}
       <div className="mt-8">
-        <Button
-          variant="primary"
-          href="/pricing"
-          className="w-full text-center"
+        <button
+          onClick={handleCheckout}
+          disabled={loading || price === 0}
+          className="inline-flex w-full items-center justify-center rounded-lg bg-blue-500 px-8 py-3.5 font-body font-bold text-white shadow-sm transition-all duration-300 ease-out hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)] disabled:opacity-50"
         >
-          Get Started
-        </Button>
+          {loading ? "Redirecting..." : "Get Started"}
+        </button>
       </div>
 
       {/* Guarantee badge */}
