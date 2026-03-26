@@ -6,6 +6,7 @@ import { Check, X, Sparkles } from "lucide-react";
 import {
   PRICING_TIERS,
   COURSE_TYPE_LABELS,
+  COURSE_FULL_NAMES,
   type CourseType,
   type PricingTier,
 } from "@/lib/pricing";
@@ -51,7 +52,7 @@ function PricingCardsInner({
         {/* Course type toggle */}
         {showToggle && (
           <div
-            className="mb-12 flex justify-center"
+            className="mb-16 flex justify-center"
             style={fadeUp(isInView, 0)}
           >
             <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
@@ -216,7 +217,7 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardP
           </span>
         )}
         <p className="mt-1 text-sm text-gray-400">
-          {tier.accessMonths}-month access
+          {COURSE_FULL_NAMES[courseType]} &middot; {tier.accessMonths}-month access
         </p>
       </div>
 

@@ -259,15 +259,25 @@ function SignupForm() {
 
       {/* Sign in link */}
       {!success && (
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Already have an account?{" "}
-          <Link
-            href={`/login${planParams}`}
-            className="font-medium text-blue-500 hover:text-blue-600"
-          >
-            Sign in
-          </Link>
-        </p>
+        <div className="mt-6 space-y-2 text-center text-sm text-gray-500">
+          <p>
+            Already have an account?{" "}
+            <Link
+              href={`/login${planParams}`}
+              className="font-medium text-blue-500 hover:text-blue-600"
+            >
+              Sign in
+            </Link>
+          </p>
+          <p>
+            <Link
+              href="/"
+              className="font-medium text-gray-400 hover:text-gray-600"
+            >
+              Back to website
+            </Link>
+          </p>
+        </div>
       )}
     </div>
   );

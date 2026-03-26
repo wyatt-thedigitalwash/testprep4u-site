@@ -25,6 +25,12 @@ export const COURSE_TYPE_LABELS: Record<CourseType, string> = {
   combined: "Life & Health",
 };
 
+export const COURSE_FULL_NAMES: Record<CourseType, string> = {
+  life: "Florida Life Insurance",
+  health: "Florida Health Insurance",
+  combined: "Florida Life & Health Insurance",
+};
+
 export const PRICING_TIERS: PricingTier[] = [
   {
     slug: "essentials",
