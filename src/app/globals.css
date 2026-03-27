@@ -130,6 +130,22 @@ h4 {
   animation: dropdown-in 0.2s ease-out;
 }
 
+/* Completion toast slide-in */
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 0.3s ease-out;
+}
+
 /* FAQ accordion — CSS grid 0fr → 1fr for smooth expand */
 .faq-answer {
   display: grid;

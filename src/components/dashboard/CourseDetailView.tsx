@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Clock,
@@ -13,6 +13,7 @@ import {
   Award,
   BookOpen,
   Circle,
+  CheckCircle2,
 } from "lucide-react";
 import { ProgressRing } from "./ProgressRing";
 import type { CourseDetail, SectionWithProgress } from "@/lib/course-types";
@@ -21,17 +22,88 @@ import { formatTime, formatHours } from "@/lib/course-types";
 interface CourseDetailViewProps {
   detail: CourseDetail;
   courseSlug: string;
+  completedModuleId?: string;
 }
 
-export function CourseDetailView({ detail, courseSlug }: CourseDetailViewProps) {
+/** Find the next unlocked, non-completed module after the given module ID */
+function findNextModule(
+  sections: SectionWithProgress[],
+  completedId: string
+): { moduleId: string; sectionId: string } | null {
+  let foundCompleted = false;
+  for (const section of sections) {
+    if (!section.isUnlocked) continue;
+    for (const mod of section.modules) {
+      if (mod.id === completedId) {
+        foundCompleted = true;
+        continue;
+      }
+      if (
+        foundCompleted &&
+        mod.isUnlocked &&
+        mod.progress?.status !== "completed"
+      ) {
+        return { moduleId: mod.id, sectionId: section.id };
+      }
+    }
+  }
+  return null;
+}
+
+export function CourseDetailView({
+  detail,
+  courseSlug,
+  completedModuleId,
+}: CourseDetailViewProps) {
+  const [showToast, setShowToast] = useState(!!completedModuleId);
+  const nextModuleRef = useRef<HTMLDivElement>(null);
+
+  // Determine which module/section to highlight
+  const nextModule = completedModuleId
+    ? findNextModule(detail.sections, completedModuleId)
+    : null;
+  const highlightModuleId = nextModule?.moduleId;
+  const highlightSectionId = nextModule?.sectionId;
+
+  // Auto-expand the highlighted section, or fall back to first incomplete unlocked section
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
-    // Auto-expand the first unlocked incomplete section
-    const first = detail.sections.find(
-      (s) =>
-        s.isUnlocked && s.completedModules < s.totalModules
-    );
-    return new Set(first ? [first.id] : []);
+    const initial = new Set<string>();
+    if (highlightSectionId) {
+      initial.add(highlightSectionId);
+    } else {
+      const first = detail.sections.find(
+        (s) => s.isUnlocked && s.completedModules < s.totalModules
+      );
+      if (first) initial.add(first.id);
+    }
+    return initial;
   });
+
+  // Auto-dismiss toast after 3 seconds and clean URL
+  useEffect(() => {
+    if (!completedModuleId) return;
+
+    const timer = setTimeout(() => setShowToast(false), 3000);
+
+    // Clean the ?completed param from URL without triggering navigation
+    const url = new URL(window.location.href);
+    url.searchParams.delete("completed");
+    window.history.replaceState({}, "", url.toString());
+
+    return () => clearTimeout(timer);
+  }, [completedModuleId]);
+
+  // Auto-scroll to the next module after a short delay
+  useEffect(() => {
+    if (!highlightModuleId) return;
+    const timer = setTimeout(() => {
+      nextModuleRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [highlightModuleId]);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
@@ -54,6 +126,16 @@ export function CourseDetailView({ detail, courseSlug }: CourseDetailViewProps) 
 
   return (
     <>
+      {/* Completion toast */}
+      {showToast && (
+        <div className="animate-fade-in-down flex items-center gap-2 rounded-xl border border-success/30 bg-success-light px-5 py-3 shadow-sm">
+          <CheckCircle2 size={18} className="flex-shrink-0 text-success" />
+          <p className="text-sm font-semibold text-success">
+            Chapter completed!
+          </p>
+        </div>
+      )}
+
       {/* Course header */}
       <div className="flex flex-col gap-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="flex-1">
@@ -119,6 +201,8 @@ export function CourseDetailView({ detail, courseSlug }: CourseDetailViewProps) 
             courseSlug={courseSlug}
             isExpanded={expandedSections.has(section.id)}
             onToggle={() => toggleSection(section.id)}
+            highlightModuleId={highlightModuleId}
+            nextModuleRef={nextModuleRef}
           />
         ))}
       </div>
@@ -136,11 +220,15 @@ function SectionAccordion({
   courseSlug,
   isExpanded,
   onToggle,
+  highlightModuleId,
+  nextModuleRef,
 }: {
   section: SectionWithProgress;
   courseSlug: string;
   isExpanded: boolean;
   onToggle: () => void;
+  highlightModuleId?: string;
+  nextModuleRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const allComplete = section.completedModules === section.totalModules;
 
@@ -246,6 +334,7 @@ function SectionAccordion({
               const isInProgress = mod.progress?.status === "in_progress";
               const isLocked = !mod.isUnlocked;
               const isQuiz = mod.moduleType === "quiz";
+              const isHighlighted = mod.id === highlightModuleId;
 
               const timeSeconds =
                 mod.progress?.timeSpentSeconds || 0;
@@ -262,10 +351,13 @@ function SectionAccordion({
               return (
                 <div
                   key={mod.id}
+                  ref={isHighlighted ? nextModuleRef : undefined}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 ${
                     isLocked
                       ? "opacity-50"
-                      : "transition-colors hover:bg-gray-50"
+                      : isHighlighted
+                        ? "ring-2 ring-blue-500 ring-offset-1 bg-blue-50 transition-all"
+                        : "transition-colors hover:bg-gray-50"
                   }`}
                 >
                   {/* Status icon */}

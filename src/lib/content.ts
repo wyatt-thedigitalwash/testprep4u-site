@@ -256,6 +256,67 @@ export const homePage = {
     ctaHref: "/faq",
   },
 
+  ourCourses: {
+    headline: "Our Courses",
+    subheadline:
+      "Choose the license that matches your career goals. Every course is state-approved and designed to help you pass on your first attempt.",
+    courses: [
+      {
+        title: "Life Insurance",
+        description:
+          "Everything you need to know to start your new career as a life insurance and annuity agent.",
+        hours: "40",
+        chapters: "24",
+        href: "/life-insurance-exam-prep",
+        cta: "Explore Life Course",
+      },
+      {
+        title: "Health Insurance",
+        description:
+          "Help people access the healthcare they deserve. Sell health insurance, Medicare plans, disability income, or long-term care insurance.",
+        hours: "40",
+        chapters: "24",
+        href: "/health-insurance-exam-prep",
+        cta: "Explore Health Course",
+      },
+      {
+        title: "Life & Health Combined",
+        description:
+          "Help individuals and businesses with life insurance, guaranteed income, health, disability, and long-term care insurance.",
+        hours: "60",
+        chapters: "48",
+        href: "/life-and-health-insurance-exam-prep",
+        cta: "Explore Combined Course",
+      },
+    ],
+  },
+
+  afterYouPass: {
+    headline: "How It Works: After You Pass",
+    subheadline:
+      "Passing the course is just the beginning. Here's what comes next on the road to your first sale.",
+    steps: [
+      {
+        number: 1,
+        title: "Take Your State Exam",
+        description:
+          "Schedule and pass your licensing exam at a Pearson VUE testing center. You'll receive your score immediately after completing the exam.",
+      },
+      {
+        number: 2,
+        title: "Get Fingerprinted",
+        description:
+          "Complete your electronic fingerprinting through Fieldprint. This is required by your state's Department of Insurance before your license is issued.",
+      },
+      {
+        number: 3,
+        title: "Get Licensed & Appointed",
+        description:
+          "Once your background check clears, your state issues your license. Then get appointed with an insurer and start selling.",
+      },
+    ],
+  },
+
   bottomCta: {
     headline: "Ready to Start Your Insurance Career?",
     body: "Join thousands of students who chose the smarter way to prepare. State-approved courses, AI-powered practice exams, and 24/7 support.",

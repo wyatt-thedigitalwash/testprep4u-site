@@ -37,8 +37,10 @@ Complete end-to-end documentation of every process in the TestPrep4U platform, t
 
 1. **Full name** (`fullName`) — text, required, placeholder "Alex Johnson"
 2. **Email** (`email`) — email, required, placeholder "you@example.com"
-3. **Password** (`password`) — password, required, min 8 chars
+3. **Password** (`password`) — password, required, min 8 chars, with Eye/EyeOff visibility toggle
 4. **State** (`state`) — select dropdown, required, currently only `[{ value: "FL", label: "Florida" }]`
+
+A "Back to website" link below the form links to `/` for users who navigated here by mistake.
 
 ### Signup Flow Step by Step
 
@@ -69,6 +71,7 @@ Complete end-to-end documentation of every process in the TestPrep4U platform, t
    - Detects new user (created_at within last 5 minutes) and sends a **welcome email** via `welcomeEmail()` template.
    - Sanitizes the `next` param (must start with `/` and not `//` to prevent open redirects).
    - Redirects to the `next` URL, or falls back to `/pricing` for new users, `/dashboard` otherwise.
+   - **Error handling:** If the link is expired, denied, or invalid, the callback detects `error_code` / `error_description` params from Supabase and redirects to `/login?error={friendlyMessage}`. Mapped errors include `otp_expired` ("This link has expired"), `access_denied` ("Access was denied"), and `otp_invalid` ("This link is invalid or has already been used").
 
 7. **Database trigger fires** (`supabase/migrations/001_initial_schema.sql`): The `on_auth_user_created` trigger calls `handle_new_user()`, which inserts a row into `profiles`:
    ```sql
@@ -80,12 +83,13 @@ Complete end-to-end documentation of every process in the TestPrep4U platform, t
 
 ### Login Flow
 
-1. User submits email + password. `login()` helper calls `supabase.auth.signInWithPassword()`.
+1. User submits email + password (password field has Eye/EyeOff visibility toggle). `login()` helper calls `supabase.auth.signInWithPassword()`.
 2. Specific error messages are mapped:
    - `"Invalid login credentials"` → "Incorrect email or password."
-   - `"Email not confirmed"` → "Please confirm your email address before signing in."
+   - `"Email not confirmed"` → "Please confirm your email address before signing in." — also shows a **"Resend confirmation email"** button that calls `resendConfirmation()` (`supabase.auth.resend({ type: "signup", email })`). On success, displays "Confirmation email sent!" toast.
    - Rate limit errors → "Too many login attempts. Please wait."
-3. After successful login:
+3. **Callback error display:** If the user arrives with `?error=...` (from an expired/invalid auth callback link), the error message is displayed at the top of the form and cleaned from the URL via `history.replaceState`.
+4. After successful login:
    - If `plan` + `course` params exist → redirect to `/pricing?plan=X&course=Y&autoCheckout=true`.
    - Otherwise → fetch `GET /api/user/has-enrollments` to check if user has active enrollments.
      - Has enrollments → redirect to `/dashboard`.
@@ -96,7 +100,7 @@ Complete end-to-end documentation of every process in the TestPrep4U platform, t
 1. `/forgot-password` — User enters email. Calls `supabase.auth.resetPasswordForEmail()` with redirect to `/auth/callback?next=/reset-password`.
 2. Supabase sends reset email with link to `/auth/callback?code=XXX&next=/reset-password`.
 3. Callback exchanges code for session. Detects `"reset-password"` in the next param and skips the welcome email.
-4. Redirects to `/reset-password` where user enters new password + confirmation.
+4. Redirects to `/reset-password` where user enters new password + confirmation. Both password fields have Eye/EyeOff visibility toggles.
 5. Calls `supabase.auth.updateUser({ password })`, then redirects to `/dashboard`.
 
 ### Middleware Protection (`src/middleware.ts`)
@@ -132,6 +136,10 @@ The pricing page renders `<PricingCards>` which reads URL query params:
 - `?course=life|health|combined` — pre-selects course type toggle
 - `?plan=essentials|pro|premium` — pre-selects tier
 - `?autoCheckout=true` — auto-triggers checkout on load (used after signup redirect)
+
+**Auto-Checkout Loading State:** When `autoCheckout=true` is detected with a valid `plan` param, the component renders a full-screen `<AutoCheckoutLoader>` instead of the pricing cards. This branded loading screen shows the TestPrep4U logo, a spinner, and "Setting up your course..." message. It checks for existing enrollments first (redirects to dashboard if already enrolled), then initiates the Stripe checkout. If the checkout fails, it reloads without the `autoCheckout` param to show the normal pricing cards.
+
+Each tier card displays the **course full name** (e.g., "Florida Life Insurance") below the price via `COURSE_FULL_NAMES[courseType]` from `src/lib/pricing.ts`, so toggling between Life/Health shows a visible change even when prices are identical.
 
 ### Tier Structure (`src/lib/pricing.ts`)
 
@@ -279,9 +287,11 @@ User clicks "Get Started" on Pro Life tier
 | Courses Enrolled | `COUNT(enrollments)` where status in ('active', 'completed') | e.g., "2" |
 
 **Enrolled courses section:** 2-column responsive grid of course cards.
-- Each card shows: course type badge, course name, enrollment date, and a CTA button.
-- CTA is "Start Course" if `hasStarted === false`, otherwise "Continue".
+- Each card shows: course type badge, course name, enrollment date, expiration date, and a CTA button.
+- CTA is **"Start Course"** if `hasStarted === false`, otherwise **"Continue Course"**.
 - Links to `/dashboard/courses/{courseSlug}`.
+
+The My Courses page (`/dashboard/courses`) uses the same "Start Course" / "Continue Course" logic.
 
 **Empty state:** If no enrollments, shows "You don't have any active courses yet" with a link to `/pricing`.
 
@@ -311,10 +321,10 @@ Navigation items:
 ### Settings Page (`src/app/dashboard/settings/page.tsx`)
 
 Displays:
-- **Profile:** Name, email, state (from Supabase auth metadata).
+- **Profile:** Editable via `<ProfileEditor>` component (`src/components/dashboard/ProfileEditor.tsx`). Shows name, email (read-only), phone, and state. A pencil icon toggles edit mode; Cancel reverts to saved values. Saves via `PATCH /api/user/profile` which updates both the `profiles` table and syncs `full_name`/`state` to auth `user_metadata`. Input validation: name 1–100 chars, phone ≤ 20 chars, state must be `"FL"`.
 - **Subscription:** Current tier badge, active status, enrollment date, expiration date, included features list from `PRICING_TIERS`.
 - **Upgrade section:** `<UpgradeSection>` component if not at max tier (see [Section 9](#9-upgrade-flow)).
-- **Support:** Link to `/contact`.
+- **Support:** Link to `/contact` (opens in new tab).
 - **Upgrade success banner:** Shown when `?upgrade=success` query param is present.
 
 ### Practice Exams Index (`src/app/dashboard/exams/page.tsx`)
@@ -398,6 +408,14 @@ Renders an accordion of sections, each expandable to show modules:
 - A seat time tracker shows progress toward the 30-hour requirement.
 - The Final Exam & Certificate card at the bottom shows contextual CTAs based on completion state.
 
+**Module completion UX:** When a student returns from completing a SCORM module (via `?completed=moduleId` query param):
+1. A green **completion toast** ("Chapter completed!") appears at the top and auto-dismisses after 3 seconds (CSS `animate-fade-in-down` animation).
+2. The `?completed` param is immediately cleaned from the URL via `history.replaceState`.
+3. The **next available module** is identified by `findNextModule()` — walks sections sequentially to find the next unlocked, incomplete module.
+4. The section containing the next module is **auto-expanded**.
+5. The next module row is **highlighted** with `ring-2 ring-blue-500 ring-offset-1 bg-blue-50`.
+6. After a 300ms delay, the page **auto-scrolls** to the highlighted module via `scrollIntoView({ behavior: "smooth", block: "center" })`.
+
 ---
 
 ## 5. SCORM Integration
@@ -421,6 +439,7 @@ A full-screen overlay that:
 2. **Creates a `ScormAPI` instance** with the saved data and mounts it on `window.API_1484_11`.
 3. **Renders an iframe** pointing to the SCORM entry HTML (currently served from `public/` directory).
 4. **Tracks session start time** (`Date.now()`) for elapsed time calculation.
+5. **Immediate navigation on completion:** When the SCORM content calls `Terminate()`, the component fires a **fire-and-forget** save (no `await`) and immediately navigates back to the course detail page with `?completed={moduleId}` if the module was completed. A `hasNavigatedRef` prevents double navigation. There is no session summary overlay — the student returns to the course page instantly.
 
 ### API_1484_11 Discovery
 
@@ -481,9 +500,9 @@ On `Terminate()`:
 - A debounce flag (`saveInFlightRef`) prevents overlapping requests.
 
 **Final save (on Terminate or close):**
-- When content calls `Terminate()`, `onTerminate` fires `saveProgress(data, isFinal=true)`.
-- If the user clicks the close button before `Terminate()`, `handleClose()` manually triggers a final save.
-- The final save waits for any in-flight intermediate save to complete before proceeding.
+- When content calls `Terminate()`, `onTerminate` fires `saveProgress(data, isFinal=true)` as **fire-and-forget** (no `await`) and immediately navigates back to the course detail page. If the module was completed, the URL includes `?completed={moduleId}` to trigger the completion toast and next-module highlighting.
+- If the user clicks the close button before `Terminate()`, `handleClose()` also fires a fire-and-forget save and navigates back immediately.
+- A `hasNavigatedRef` prevents double navigation if both `onTerminate` and `handleClose` fire in quick succession.
 - With `isFinal: true`, the server:
   1. Fetches the existing `time_spent_seconds` and adds the new session time.
   2. Creates a `time_logs` row for the audit trail.
@@ -997,6 +1016,7 @@ event = getStripe().webhooks.constructEvent(body, signature, webhookSecret);
 | `/api/quiz/start` | `sectionNumber` must be non-negative integer; `type` is implicitly validated by branching |
 | `/api/quiz/submit` | `type` must be in `["section_quiz", "practice", "final"]`; each answer must have `questionId` (string) and `selectedIndex` (number) |
 | `/api/scorm/save` | `sessionTimeSeconds` validated as positive finite number; capped at 14,400s; score kept in 0–100 range |
+| `/api/user/profile` | `fullName` 1–100 chars; `phone` ≤ 20 chars; `state` must be in `["FL"]` |
 | `/api/affidavit` | `typedName` max 200 characters |
 | `/api/contact` | Name max 200, subject max 300, message max 5000; email format regex; all fields required |
 | `/api/checkout` | `tier` and `courseType` validated against allowed values |
@@ -1011,10 +1031,12 @@ event = getStripe().webhooks.constructEvent(body, signature, webhookSecret);
 
 Applied to all routes via `headers()`:
 ```
-X-Frame-Options: DENY
+X-Frame-Options: SAMEORIGIN
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 ```
+
+Note: `X-Frame-Options` is set to `SAMEORIGIN` (not `DENY`) to allow SCORM content to load in iframes within the platform.
 
 ### Additional Security Measures
 

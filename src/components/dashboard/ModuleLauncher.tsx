@@ -2,16 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  X,
-  Maximize2,
-  Minimize2,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Target,
-  BookOpen,
-} from "lucide-react";
+import { X, Maximize2, Minimize2 } from "lucide-react";
 import { ScormAPI, type ScormSessionSummary } from "@/lib/scorm-api";
 
 interface ModuleLauncherProps {
@@ -43,18 +34,31 @@ export function ModuleLauncher({
   const [loading, setLoading] = useState(true);
   const [apiReady, setApiReady] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [summary, setSummary] = useState<ScormSessionSummary | null>(null);
   const apiRef = useRef<ScormAPI | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
   const saveInFlightRef = useRef(false);
+  const hasNavigatedRef = useRef(false);
 
-  // Save progress to server
+  // Navigate back to course detail, optionally with completion flag
+  const navigateBack = useCallback(
+    (completedModuleId?: string) => {
+      if (hasNavigatedRef.current) return;
+      hasNavigatedRef.current = true;
+      const params = completedModuleId
+        ? `?completed=${completedModuleId}`
+        : "";
+      router.push(`/dashboard/courses/${courseSlug}${params}`);
+      router.refresh();
+    },
+    [courseSlug, router]
+  );
+
+  // Save progress to server (fire-and-forget for final saves on close)
   const saveProgress = useCallback(
     async (sessionData: ScormSessionSummary, isFinal: boolean) => {
       // If a save is in flight, skip intermediate saves but wait for final
       if (saveInFlightRef.current && !isFinal) return;
       if (saveInFlightRef.current && isFinal) {
-        // Wait for the in-flight save to finish before sending the final save
         await new Promise<void>((resolve) => {
           const interval = setInterval(() => {
             if (!saveInFlightRef.current) {
@@ -130,9 +134,10 @@ export function ModuleLauncher({
           saveProgress(data, false);
         },
         onTerminate: (data) => {
-          // Final save + show summary
+          // Final save in background, navigate back immediately
           saveProgress(data, true);
-          setSummary(data);
+          const didComplete = data.completionStatus === "completed";
+          navigateBack(didComplete ? moduleId : undefined);
         },
       });
 
@@ -153,7 +158,7 @@ export function ModuleLauncher({
       cancelled = true;
       delete window.API_1484_11;
     };
-  }, [enrollmentId, moduleId, learnerId, learnerName, saveProgress]);
+  }, [enrollmentId, moduleId, learnerId, learnerName, saveProgress, navigateBack]);
 
   // Prevent body scroll
   useEffect(() => {
@@ -163,11 +168,13 @@ export function ModuleLauncher({
     };
   }, []);
 
-  // Handle close button — if content didn't call Terminate, do a final save
+  // Handle close button — save in background, navigate back immediately
   const handleClose = useCallback(() => {
+    if (hasNavigatedRef.current) return;
     if (apiRef.current) {
       const data = apiRef.current.getSessionSummary();
-      // If we have meaningful progress, save and show summary
+      const didComplete = data.completionStatus === "completed";
+      // Fire-and-forget save
       if (
         data.completionStatus !== "unknown" ||
         data.scoreRaw ||
@@ -175,12 +182,12 @@ export function ModuleLauncher({
         data.suspendData
       ) {
         saveProgress(data, true);
-        setSummary(data);
-        return;
       }
+      navigateBack(didComplete ? moduleId : undefined);
+    } else {
+      navigateBack();
     }
-    router.push(`/dashboard/courses/${courseSlug}`);
-  }, [courseSlug, router, saveProgress]);
+  }, [moduleId, navigateBack, saveProgress]);
 
   // Save progress on tab close / browser back via sendBeacon
   useEffect(() => {
@@ -220,123 +227,9 @@ export function ModuleLauncher({
     return () => window.removeEventListener("message", handleMessage);
   }, [handleClose]);
 
-  const handleReturn = useCallback(() => {
-    router.push(`/dashboard/courses/${courseSlug}`);
-    router.refresh();
-  }, [courseSlug, router]);
-
   // TODO: Move SCORM packages to Supabase Storage and serve via signed URLs.
   // Currently served from public/ directory — accessible without authentication.
   const iframeSrc = `/${scormEntryPath}`;
-
-  // Session summary overlay
-  if (summary) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-        <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-            <h2 className="font-display text-lg font-semibold text-navy">
-              Session Complete
-            </h2>
-            <button
-              onClick={handleReturn}
-              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div className="space-y-4 p-6">
-            <p className="text-sm font-medium text-navy">{moduleTitle}</p>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div
-                className={`rounded-lg p-4 ${
-                  summary.completionStatus === "completed"
-                    ? "bg-success-light"
-                    : "bg-gray-100"
-                }`}
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  {summary.completionStatus === "completed" ? (
-                    <CheckCircle2 size={14} className="text-success" />
-                  ) : (
-                    <Clock size={14} className="text-gray-400" />
-                  )}
-                  Completion
-                </div>
-                <p className="mt-1 font-display text-lg font-bold capitalize text-navy">
-                  {summary.completionStatus}
-                </p>
-              </div>
-              <div
-                className={`rounded-lg p-4 ${
-                  summary.successStatus === "passed"
-                    ? "bg-success-light"
-                    : summary.successStatus === "failed"
-                      ? "bg-error-light"
-                      : "bg-gray-100"
-                }`}
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  {summary.successStatus === "passed" ? (
-                    <CheckCircle2 size={14} className="text-success" />
-                  ) : summary.successStatus === "failed" ? (
-                    <XCircle size={14} className="text-error" />
-                  ) : (
-                    <Target size={14} className="text-gray-400" />
-                  )}
-                  Success
-                </div>
-                <p className="mt-1 font-display text-lg font-bold capitalize text-navy">
-                  {summary.successStatus}
-                </p>
-              </div>
-            </div>
-
-            {summary.scoreRaw && (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
-                  <Target size={14} />
-                  Score
-                </div>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="font-display text-3xl font-bold text-navy">
-                    {summary.scoreRaw}
-                  </span>
-                  {summary.scoreMax && (
-                    <span className="text-sm text-gray-500">
-                      / {summary.scoreMax}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-100/40 p-3">
-              <BookOpen
-                size={18}
-                className="mt-0.5 flex-shrink-0 text-blue-500"
-              />
-              <p className="text-xs leading-relaxed text-gray-600">
-                Your progress and time have been saved. You can return to this
-                module to continue where you left off.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end border-t border-gray-200 px-6 py-4">
-            <button
-              onClick={handleReturn}
-              className="rounded-lg bg-blue-500 px-5 py-2 text-sm font-bold text-white transition-all duration-300 hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)]"
-            >
-              Return to Course
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/70">

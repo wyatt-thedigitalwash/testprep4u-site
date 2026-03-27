@@ -6,10 +6,14 @@ import { CourseDetailView } from "@/components/dashboard/CourseDetailView";
 
 interface Props {
   params: Promise<{ courseId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function CourseDetailPage({ params }: Props) {
+export default async function CourseDetailPage({ params, searchParams }: Props) {
   const { courseId } = await params;
+  const sp = await searchParams;
+  const completedModuleId = typeof sp.completed === "string" ? sp.completed : undefined;
+
   const detail = await getCourseDetail(courseId);
 
   if (!detail) {
@@ -26,7 +30,11 @@ export default async function CourseDetailPage({ params }: Props) {
         <ArrowLeft size={16} /> Back to Dashboard
       </Link>
 
-      <CourseDetailView detail={detail} courseSlug={courseId} />
+      <CourseDetailView
+        detail={detail}
+        courseSlug={courseId}
+        completedModuleId={completedModuleId}
+      />
     </div>
   );
 }

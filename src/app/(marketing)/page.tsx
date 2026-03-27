@@ -3,8 +3,10 @@ import { homePage } from "@/lib/content";
 import { SITE } from "@/lib/constants";
 import { Hero } from "@/components/sections/Hero";
 import { FeatureGrid } from "@/components/sections/FeatureGrid";
+import { OurCourses } from "@/components/sections/OurCourses";
 import { StepsOverview } from "@/components/sections/StepsOverview";
 import { Guarantee } from "@/components/sections/Guarantee";
+import { AfterYouPass } from "@/components/sections/AfterYouPass";
 import { QuickFacts } from "@/components/sections/QuickFacts";
 import { FaqPreview } from "@/components/sections/FaqPreview";
 import { BottomCta } from "@/components/sections/BottomCta";
@@ -27,8 +29,10 @@ export default function Home() {
     <>
       <Hero />
       <FeatureGrid />
+      <OurCourses />
       <StepsOverview />
       <Guarantee />
+      <AfterYouPass />
       <QuickFacts />
       <FaqPreview />
       <BottomCta />

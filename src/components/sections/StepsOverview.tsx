@@ -9,7 +9,7 @@ export function StepsOverview() {
   const { ref, isInView } = useInView<HTMLDivElement>({ threshold: 0.1 });
 
   return (
-    <section className="bg-gray-50 py-20 md:py-24">
+    <section className="py-20 md:py-24">
       <div ref={ref} className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
         {/* Header */}
         <div className="mx-auto max-w-3xl text-center" style={fadeUp(isInView, 0)}>
