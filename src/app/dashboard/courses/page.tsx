@@ -77,7 +77,7 @@ export default async function CoursesPage() {
                 href={`/dashboard/courses/${e.courseSlug}`}
                 className="inline-flex items-center justify-center rounded-lg bg-blue-500 px-5 py-2 font-body text-sm font-bold text-white shadow-sm transition-all duration-300 ease-out hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)]"
               >
-                Continue
+                {e.hasStarted ? "Continue Course" : "Start Course"}
               </Link>
             </div>
           ))}

@@ -46,6 +46,11 @@ function PricingCardsInner({
   const [courseType, setCourseType] = useState<CourseType>(resolvedInitial);
   const { ref, isInView } = useInView<HTMLDivElement>({ threshold: 0.05 });
 
+  // Show full-screen loading when auto-checkout is triggered
+  if (autoCheckout && planParam) {
+    return <AutoCheckoutLoader planParam={planParam} courseType={resolvedInitial} />;
+  }
+
   return (
     <section className="py-20 md:py-24">
       <div ref={ref} className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
@@ -82,10 +87,93 @@ function PricingCardsInner({
               courseType={courseType}
               isInView={isInView}
               delay={150 + i * 100}
-              autoCheckout={autoCheckout && tier.slug === planParam}
+              autoCheckout={false}
             />
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- Auto-checkout loading screen ---------- */
+
+function AutoCheckoutLoader({
+  planParam,
+  courseType,
+}: {
+  planParam: string;
+  courseType: CourseType;
+}) {
+  const router = useRouter();
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+
+    // Clear any stale localStorage fallback
+    try { localStorage.removeItem("pendingCheckout"); } catch {}
+
+    (async () => {
+      try {
+        // Check for existing enrollment first
+        const enrollCheck = await fetch("/api/user/has-enrollments");
+        if (enrollCheck.ok) {
+          const enrollData = await enrollCheck.json();
+          if (enrollData.hasEnrollments) {
+            router.push("/dashboard");
+            return;
+          }
+        }
+
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier: planParam, courseType }),
+        });
+
+        if (!res.ok) {
+          // Fall back to showing pricing page on error
+          const url = new URL(window.location.href);
+          url.searchParams.delete("autoCheckout");
+          window.history.replaceState({}, "", url.toString());
+          window.location.reload();
+          return;
+        }
+
+        const data = await res.json();
+        if (data.url) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("autoCheckout");
+          window.history.replaceState({}, "", url.toString());
+          window.location.href = data.url;
+        } else {
+          // Fall back to showing pricing page
+          const url = new URL(window.location.href);
+          url.searchParams.delete("autoCheckout");
+          window.history.replaceState({}, "", url.toString());
+          window.location.reload();
+        }
+      } catch {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("autoCheckout");
+        window.history.replaceState({}, "", url.toString());
+        window.location.reload();
+      }
+    })();
+  }, [planParam, courseType, router]);
+
+  return (
+    <section className="flex min-h-[60vh] flex-col items-center justify-center px-6">
+      <div className="text-center">
+        <div className="mx-auto mb-6 h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-500" />
+        <h2 className="font-display text-2xl font-bold text-navy">
+          Welcome to TestPrep4U!
+        </h2>
+        <p className="mt-2 text-sm text-gray-500">
+          Redirecting you to checkout...
+        </p>
       </div>
     </section>
   );

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  User,
   CreditCard,
   HelpCircle,
   ArrowUpRight,
@@ -16,6 +15,7 @@ import {
   UpgradeSection,
   type UpgradeOption,
 } from "@/components/dashboard/UpgradeSection";
+import { ProfileEditor } from "@/components/dashboard/ProfileEditor";
 
 const TIER_ORDER = ["essentials", "pro", "premium"] as const;
 
@@ -58,10 +58,18 @@ export default async function SettingsPage(props: {
 
   const enrollments = await getUserEnrollments();
 
+  // Fetch profile data (includes phone which isn't in user_metadata)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, phone, state")
+    .eq("id", user.id)
+    .single();
+
   const fullName =
-    user.user_metadata?.full_name || user.email?.split("@")[0] || "Student";
+    profile?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "Student";
   const email = user.email || "";
-  const state = user.user_metadata?.state || "Florida";
+  const phone = profile?.phone || "";
+  const state = profile?.state || user.user_metadata?.state || "FL";
 
   // Use the highest tier enrollment for display
   const tierPriority = { premium: 3, pro: 2, essentials: 1 };
@@ -145,29 +153,12 @@ export default async function SettingsPage(props: {
 
       {/* Profile */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
-            <User size={20} className="text-blue-500" />
-          </div>
-          <h3 className="font-display text-lg font-semibold text-navy">
-            Profile
-          </h3>
-        </div>
-
-        <dl className="space-y-3 text-sm">
-          <div className="flex justify-between border-b border-gray-100 pb-3">
-            <dt className="text-gray-500">Name</dt>
-            <dd className="font-medium text-navy">{fullName}</dd>
-          </div>
-          <div className="flex justify-between border-b border-gray-100 pb-3">
-            <dt className="text-gray-500">Email</dt>
-            <dd className="font-medium text-navy">{email}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-gray-500">State</dt>
-            <dd className="font-medium text-navy">{state}</dd>
-          </div>
-        </dl>
+        <ProfileEditor
+          fullName={fullName}
+          email={email}
+          phone={phone}
+          state={state}
+        />
       </div>
 
       {/* Subscription */}
@@ -289,6 +280,8 @@ export default async function SettingsPage(props: {
 
         <Link
           href="/contact"
+          target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center justify-center rounded-lg border-2 border-blue-500 px-5 py-2 font-body text-sm font-bold text-blue-500 transition-all duration-300 hover:bg-blue-500 hover:text-white"
         >
           Contact Support
