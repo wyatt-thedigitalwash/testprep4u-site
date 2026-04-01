@@ -45,7 +45,6 @@ export async function middleware(request: NextRequest) {
   ) {
     const plan = request.nextUrl.searchParams.get("plan");
     const course = request.nextUrl.searchParams.get("course");
-    const discount = request.nextUrl.searchParams.get("discount");
     const url = request.nextUrl.clone();
 
     if (plan && course) {
@@ -54,7 +53,6 @@ export async function middleware(request: NextRequest) {
       url.searchParams.set("plan", plan);
       url.searchParams.set("course", course);
       url.searchParams.set("autoCheckout", "true");
-      if (discount) url.searchParams.set("discount", discount);
     } else {
       // Check admin status — query own profile (allowed by RLS)
       const { data: profile } = await supabase

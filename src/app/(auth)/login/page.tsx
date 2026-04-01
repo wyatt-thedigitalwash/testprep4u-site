@@ -12,7 +12,6 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan");
   const course = searchParams.get("course");
-  const discount = searchParams.get("discount");
   const callbackError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
@@ -24,10 +23,9 @@ function LoginForm() {
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
 
-  // Build query string to preserve plan + discount context in links
-  const discountSuffix = discount ? `&discount=${encodeURIComponent(discount)}` : "";
+  // Build query string to preserve plan context in links
   const planParams =
-    plan && course ? `?plan=${plan}&course=${course}${discountSuffix}` : "";
+    plan && course ? `?plan=${plan}&course=${course}` : "";
 
   async function handleResend() {
     if (!email) {
@@ -70,9 +68,8 @@ function LoginForm() {
     } else {
       // If plan context exists, go straight to pricing with auto-checkout
       if (plan && course) {
-        const dp = discount ? `&discount=${encodeURIComponent(discount)}` : "";
         router.push(
-          `/pricing?plan=${plan}&course=${course}&autoCheckout=true${dp}`
+          `/pricing?plan=${plan}&course=${course}&autoCheckout=true`
         );
         router.refresh();
         return;

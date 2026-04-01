@@ -16,7 +16,6 @@ function SignupForm() {
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan");
   const course = searchParams.get("course");
-  const discount = searchParams.get("discount");
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,11 +27,9 @@ function SignupForm() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Build query string to preserve plan + discount context in links
+  // Build query string to preserve plan context in links
   const planParams =
-    plan && course
-      ? `?plan=${plan}&course=${course}${discount ? `&discount=${encodeURIComponent(discount)}` : ""}`
-      : "";
+    plan && course ? `?plan=${plan}&course=${course}` : "";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,11 +46,10 @@ function SignupForm() {
     // Build redirect URL so email confirmation lands on pricing with auto-checkout
     let redirectTo: string | undefined;
     if (plan && course) {
-      const discountParam = discount ? `&discount=${encodeURIComponent(discount)}` : "";
-      redirectTo = `/pricing?plan=${plan}&course=${course}&autoCheckout=true${discountParam}`;
+      redirectTo = `/pricing?plan=${plan}&course=${course}&autoCheckout=true`;
       localStorage.setItem(
         "pendingCheckout",
-        JSON.stringify({ plan, course, discount: discount || "" })
+        JSON.stringify({ plan, course })
       );
     }
 

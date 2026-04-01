@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, X, Sparkles, Tag } from "lucide-react";
+import { Check, X, Sparkles } from "lucide-react";
 import {
   PRICING_TIERS,
   COURSE_TYPE_LABELS,
@@ -12,11 +12,6 @@ import {
 } from "@/lib/pricing";
 import { useInView } from "@/hooks/useInView";
 import { fadeUp } from "@/lib/animations";
-import {
-  DiscountCodeField,
-  getDiscountedPrice,
-  type AppliedDiscount,
-} from "@/components/ui/DiscountCodeField";
 
 const VALID_COURSE_TYPES: CourseType[] = ["life", "health", "combined"];
 
@@ -42,20 +37,16 @@ function PricingCardsInner({
   const planParam = searchParams.get("plan");
   const autoCheckout = searchParams.get("autoCheckout") === "true";
 
-  // Use URL course param if valid, otherwise fall back to prop
   const resolvedInitial =
     courseParam && VALID_COURSE_TYPES.includes(courseParam)
       ? courseParam
       : initialType;
 
   const [courseType, setCourseType] = useState<CourseType>(resolvedInitial);
-  const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(null);
   const { ref, isInView } = useInView<HTMLDivElement>({ threshold: 0.05 });
 
-  // Show full-screen loading when auto-checkout is triggered
-  const discountParam = searchParams.get("discount") || "";
   if (autoCheckout && planParam) {
-    return <AutoCheckoutLoader planParam={planParam} courseType={resolvedInitial} discountCode={discountParam} />;
+    return <AutoCheckoutLoader planParam={planParam} courseType={resolvedInitial} />;
   }
 
   return (
@@ -85,17 +76,8 @@ function PricingCardsInner({
           </div>
         )}
 
-        {/* Discount code field */}
-        <div style={fadeUp(isInView, 50)}>
-          <DiscountCodeField
-            appliedDiscount={appliedDiscount}
-            onApply={setAppliedDiscount}
-            onClear={() => setAppliedDiscount(null)}
-          />
-        </div>
-
         {/* Tier cards */}
-        <div className="mt-10 grid items-stretch gap-6 md:grid-cols-3">
+        <div className="grid items-stretch gap-6 md:grid-cols-3">
           {PRICING_TIERS.map((tier, i) => (
             <TierCard
               key={tier.slug}
@@ -104,7 +86,6 @@ function PricingCardsInner({
               isInView={isInView}
               delay={150 + i * 100}
               autoCheckout={false}
-              appliedDiscount={appliedDiscount}
             />
           ))}
         </div>
@@ -118,11 +99,9 @@ function PricingCardsInner({
 function AutoCheckoutLoader({
   planParam,
   courseType,
-  discountCode,
 }: {
   planParam: string;
   courseType: CourseType;
-  discountCode: string;
 }) {
   const router = useRouter();
   const firedRef = useRef(false);
@@ -131,12 +110,10 @@ function AutoCheckoutLoader({
     if (firedRef.current) return;
     firedRef.current = true;
 
-    // Clear any stale localStorage fallback
     try { localStorage.removeItem("pendingCheckout"); } catch {}
 
     (async () => {
       try {
-        // Check for existing enrollment first
         const enrollCheck = await fetch("/api/user/has-enrollments");
         if (enrollCheck.ok) {
           const enrollData = await enrollCheck.json();
@@ -146,17 +123,13 @@ function AutoCheckoutLoader({
           }
         }
 
-        const checkoutBody: Record<string, string> = { tier: planParam, courseType };
-        if (discountCode) checkoutBody.discountCode = discountCode;
-
         const res = await fetch("/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(checkoutBody),
+          body: JSON.stringify({ tier: planParam, courseType }),
         });
 
         if (!res.ok) {
-          // Fall back to showing pricing page on error
           const url = new URL(window.location.href);
           url.searchParams.delete("autoCheckout");
           window.history.replaceState({}, "", url.toString());
@@ -171,7 +144,6 @@ function AutoCheckoutLoader({
           window.history.replaceState({}, "", url.toString());
           window.location.href = data.url;
         } else {
-          // Fall back to showing pricing page
           const url = new URL(window.location.href);
           url.searchParams.delete("autoCheckout");
           window.history.replaceState({}, "", url.toString());
@@ -209,10 +181,9 @@ interface TierCardProps {
   isInView: boolean;
   delay: number;
   autoCheckout?: boolean;
-  appliedDiscount: AppliedDiscount | null;
 }
 
-function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDiscount }: TierCardProps) {
+function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -220,43 +191,31 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
   const price = tier.prices[courseType];
   const isHighlighted = tier.highlighted;
 
-  const discountedPrice = getDiscountedPrice(price, appliedDiscount);
-  const hasDiscount = discountedPrice !== null && discountedPrice < price;
-
   const handleCheckout = useCallback(async () => {
     setLoading(true);
     try {
-      // Check for existing enrollment before initiating checkout
       const enrollCheck = await fetch("/api/user/has-enrollments");
       if (enrollCheck.ok) {
         const enrollData = await enrollCheck.json();
         if (enrollData.hasEnrollments) {
-          // Already enrolled — redirect to dashboard instead of double-charging
           router.push("/dashboard");
           return;
         }
       }
 
-      const body: Record<string, string> = { tier: tier.slug, courseType };
-      if (appliedDiscount) {
-        body.discountCode = appliedDiscount.code;
-      }
-
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ tier: tier.slug, courseType }),
       });
 
       if (!res.ok) {
         if (res.status === 401) {
-          // Not logged in — redirect to signup with plan + discount context
           localStorage.setItem(
             "pendingCheckout",
-            JSON.stringify({ plan: tier.slug, course: courseType, discount: appliedDiscount?.code || "" })
+            JSON.stringify({ plan: tier.slug, course: courseType })
           );
-          const discountParam = appliedDiscount ? `&discount=${encodeURIComponent(appliedDiscount.code)}` : "";
-          router.push(`/signup?plan=${tier.slug}&course=${courseType}${discountParam}`);
+          router.push(`/signup?plan=${tier.slug}&course=${courseType}`);
           setLoading(false);
           return;
         }
@@ -269,7 +228,6 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
       const data = await res.json();
 
       if (data.url) {
-        // Clear autoCheckout from URL to prevent re-trigger on back navigation
         const url = new URL(window.location.href);
         url.searchParams.delete("autoCheckout");
         window.history.replaceState({}, "", url.toString());
@@ -282,13 +240,11 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
       setError("Something went wrong. Please try again.");
       setLoading(false);
     }
-  }, [tier.slug, courseType, router, appliedDiscount]);
+  }, [tier.slug, courseType, router]);
 
-  // Auto-checkout on mount when URL params indicate returning from auth
   useEffect(() => {
     if (autoCheckout && !autoCheckoutFired.current && price > 0) {
       autoCheckoutFired.current = true;
-      // Clear any stale localStorage fallback since URL params took over
       try { localStorage.removeItem("pendingCheckout"); } catch {}
       handleCheckout();
     }
@@ -303,7 +259,6 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
       }`}
       style={fadeUp(isInView, delay)}
     >
-      {/* Recommended badge */}
       {isHighlighted && (
         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm">
@@ -313,77 +268,35 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
         </div>
       )}
 
-      {/* Header */}
       <div className={isHighlighted ? "pt-2" : ""}>
-        <h3 className="text-xl font-bold text-navy">
-          {tier.name}
-        </h3>
-        <p className="mt-1 text-sm text-gray-500">
-          {tier.tagline}
-        </p>
+        <h3 className="text-xl font-bold text-navy">{tier.name}</h3>
+        <p className="mt-1 text-sm text-gray-500">{tier.tagline}</p>
       </div>
 
-      {/* Price */}
       <div className="mt-6">
         {price > 0 ? (
-          <div>
-            <div className="flex items-baseline gap-2">
-              {hasDiscount ? (
-                <>
-                  <span className="text-4xl font-extrabold text-navy">
-                    ${discountedPrice}
-                  </span>
-                  <span className="text-xl font-bold text-gray-400 line-through">
-                    ${price}
-                  </span>
-                </>
-              ) : (
-                <span className="text-4xl font-extrabold text-navy">
-                  ${price}
-                </span>
-              )}
-            </div>
-            {hasDiscount && (
-              <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-success">
-                <Tag size={10} />
-                {appliedDiscount!.discountType === "percentage"
-                  ? `${appliedDiscount!.discountValue}% off`
-                  : `$${appliedDiscount!.discountValue} off`}
-              </p>
-            )}
-          </div>
+          <span className="text-4xl font-extrabold text-navy">${price}</span>
         ) : (
-          <span className="text-4xl font-extrabold text-navy">
-            $TBD
-          </span>
+          <span className="text-4xl font-extrabold text-navy">$TBD</span>
         )}
         <p className="mt-1 text-sm text-gray-400">
-          {COURSE_FULL_NAMES[courseType]} &middot; {tier.accessMonths}-month access
+          {COURSE_FULL_NAMES[courseType]} &middot; {tier.accessMonths}-month
+          access
         </p>
       </div>
 
-      {/* Divider */}
       <div className="my-6 border-t border-gray-200" />
 
-      {/* Features */}
       <ul className="flex-1 space-y-3">
         {tier.features.map((feature) => (
           <li key={feature.label} className="flex items-start gap-3">
             {feature.included ? (
-              <Check
-                size={16}
-                className="mt-0.5 flex-shrink-0 text-blue-500"
-              />
+              <Check size={16} className="mt-0.5 flex-shrink-0 text-blue-500" />
             ) : (
-              <X
-                size={16}
-                className="mt-0.5 flex-shrink-0 text-gray-300"
-              />
+              <X size={16} className="mt-0.5 flex-shrink-0 text-gray-300" />
             )}
             <span
-              className={`text-sm ${
-                feature.included ? "text-gray-700" : "text-gray-400"
-              }`}
+              className={`text-sm ${feature.included ? "text-gray-700" : "text-gray-400"}`}
             >
               {feature.label}
               {feature.comingSoon && (
@@ -396,14 +309,12 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
         ))}
       </ul>
 
-      {/* Error message */}
       {error && (
         <div className="mt-4 rounded-lg bg-error-light px-4 py-3 text-xs text-error">
           {error}
         </div>
       )}
 
-      {/* CTA */}
       <div className="mt-8">
         <button
           onClick={() => { setError(""); handleCheckout(); }}
@@ -414,7 +325,6 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
         </button>
       </div>
 
-      {/* Guarantee badge */}
       {tier.hasGuarantee && (
         <p className="mt-4 text-center text-xs font-medium text-gray-400">
           Includes first-time pass guarantee
