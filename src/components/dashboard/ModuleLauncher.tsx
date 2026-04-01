@@ -271,9 +271,10 @@ export function ModuleLauncher({
     return () => window.removeEventListener("message", handleMessage);
   }, [handleClose]);
 
-  // TODO: Move SCORM packages to Supabase Storage and serve via signed URLs.
-  // Currently served from public/ directory — accessible without authentication.
-  const iframeSrc = `/${scormEntryPath}`;
+  // scormEntryPath is either a relative path (public/) or a full signed URL (Supabase Storage)
+  const iframeSrc = scormEntryPath.startsWith("http")
+    ? scormEntryPath
+    : `/${scormEntryPath}`;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/70">
