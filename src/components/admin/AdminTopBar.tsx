@@ -1,0 +1,47 @@
+"use client";
+
+import { Menu } from "lucide-react";
+
+interface AdminTopBarProps {
+  title: string;
+  userName: string;
+  onToggleSidebar: () => void;
+}
+
+export function AdminTopBar({
+  title,
+  userName,
+  onToggleSidebar,
+}: AdminTopBarProps) {
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2);
+
+  return (
+    <header className="sticky top-0 z-40 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4 shadow-sm">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onToggleSidebar}
+          className="text-gray-500 hover:text-gray-700 lg:hidden"
+          aria-label="Toggle sidebar"
+        >
+          <Menu size={24} />
+        </button>
+        <h1 className="font-display text-xl font-bold text-gray-900">
+          {title}
+        </h1>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <span className="hidden text-sm font-medium text-gray-700 sm:block">
+          {userName}
+        </span>
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">
+          {initials}
+        </div>
+      </div>
+    </header>
+  );
+}

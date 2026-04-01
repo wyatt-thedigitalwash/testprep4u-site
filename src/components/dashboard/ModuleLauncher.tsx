@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { X, Maximize2, Minimize2 } from "lucide-react";
+import { X, Maximize2, Minimize2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { ScormAPI, type ScormSessionSummary } from "@/lib/scorm-api";
 
 interface ModuleLauncherProps {
@@ -13,6 +13,10 @@ interface ModuleLauncherProps {
   enrollmentId: string;
   learnerId: string;
   learnerName: string;
+  /** ID of the next sequential module, or null if this is the last module */
+  nextModuleId: string | null;
+  /** Whether this is the very last module in the course */
+  isLastModule: boolean;
 }
 
 declare global {
@@ -29,11 +33,16 @@ export function ModuleLauncher({
   moduleId,
   learnerId,
   learnerName,
+  nextModuleId,
+  isLastModule,
 }: ModuleLauncherProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [apiReady, setApiReady] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [lessonCompleted, setLessonCompleted] = useState(false);
+  const [continueLoading, setContinueLoading] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const apiRef = useRef<ScormAPI | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
   const saveInFlightRef = useRef(false);
@@ -94,6 +103,8 @@ export function ModuleLauncher({
         });
       } catch {
         console.error("[ModuleLauncher] Failed to save progress");
+        setSaveError(true);
+        setTimeout(() => setSaveError(false), 5000);
       } finally {
         saveInFlightRef.current = false;
       }
@@ -132,12 +143,22 @@ export function ModuleLauncher({
         onCommit: (data) => {
           // Intermediate save on every Commit (Rise auto-commits every 20s)
           saveProgress(data, false);
+          // Detect when the lesson is marked complete
+          if (data.completionStatus === "completed") {
+            setLessonCompleted(true);
+          }
         },
         onTerminate: (data) => {
-          // Final save in background, navigate back immediately
+          // Final save in background
           saveProgress(data, true);
+          // If the lesson was completed and user hasn't clicked "Complete & Continue",
+          // stay on the page so they can use the button. Otherwise navigate back.
           const didComplete = data.completionStatus === "completed";
-          navigateBack(didComplete ? moduleId : undefined);
+          if (didComplete) {
+            setLessonCompleted(true);
+          } else {
+            navigateBack();
+          }
         },
       });
 
@@ -216,6 +237,29 @@ export function ModuleLauncher({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [enrollmentId, moduleId]);
 
+  // Handle "Complete & Continue" — save, terminate, navigate to next module
+  const handleContinue = useCallback(async () => {
+    if (hasNavigatedRef.current) return;
+    setContinueLoading(true);
+
+    // Save final progress
+    if (apiRef.current) {
+      const data = apiRef.current.getSessionSummary();
+      await saveProgress(data, true);
+    }
+
+    hasNavigatedRef.current = true;
+
+    if (nextModuleId) {
+      router.push(`/dashboard/courses/${courseSlug}/module/${nextModuleId}`);
+      router.refresh();
+    } else {
+      // Last module — navigate to course detail with completion flag
+      router.push(`/dashboard/courses/${courseSlug}?completed=${moduleId}`);
+      router.refresh();
+    }
+  }, [nextModuleId, courseSlug, moduleId, router, saveProgress]);
+
   // Listen for close message from SCORM content
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
@@ -233,6 +277,13 @@ export function ModuleLauncher({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/70">
+      {/* Save error toast */}
+      {saveError && (
+        <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-xs font-medium text-red-600 shadow-lg">
+          Progress save failed — your work may not be saved.
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between bg-navy px-5 py-3">
         <h2 className="font-display text-sm font-semibold text-white">
@@ -256,10 +307,12 @@ export function ModuleLauncher({
 
       {/* Iframe — only render after API is ready */}
       <div
-        className={`relative flex-1 bg-white ${
+        className={`relative bg-white ${
           fullscreen
-            ? ""
-            : "mx-auto my-4 w-full max-w-6xl overflow-hidden rounded-lg shadow-2xl"
+            ? "flex-1"
+            : lessonCompleted
+              ? "mx-auto mt-4 w-full max-w-6xl flex-1 overflow-hidden rounded-t-lg shadow-2xl"
+              : "mx-auto my-4 w-full max-w-6xl flex-1 overflow-hidden rounded-lg shadow-2xl"
         }`}
       >
         {(loading || !apiReady) && (
@@ -281,6 +334,78 @@ export function ModuleLauncher({
           />
         )}
       </div>
+
+      {/* Complete & Continue bar — appears when lesson is completed */}
+      {lessonCompleted && !fullscreen && (
+        <div className="mx-auto w-full max-w-6xl rounded-b-lg border-t border-gray-200 bg-white px-5 py-4 shadow-2xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 size={20} className="text-success" />
+              <span className="text-sm font-semibold text-navy">
+                Lesson complete
+              </span>
+            </div>
+            <button
+              onClick={handleContinue}
+              disabled={continueLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-8 py-3 font-body font-bold text-white shadow-sm transition-all duration-300 ease-out hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)] disabled:opacity-60"
+            >
+              {continueLoading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Saving…
+                </>
+              ) : isLastModule ? (
+                <>
+                  Complete Course
+                  <CheckCircle2 size={16} />
+                </>
+              ) : (
+                <>
+                  Complete & Continue
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Complete & Continue for fullscreen mode */}
+      {lessonCompleted && fullscreen && (
+        <div className="border-t border-gray-200 bg-white px-5 py-4">
+          <div className="mx-auto flex max-w-6xl items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 size={20} className="text-success" />
+              <span className="text-sm font-semibold text-navy">
+                Lesson complete
+              </span>
+            </div>
+            <button
+              onClick={handleContinue}
+              disabled={continueLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-8 py-3 font-body font-bold text-white shadow-sm transition-all duration-300 ease-out hover:bg-blue-600 hover:shadow-[0_4px_16px_rgba(68,127,240,0.35)] disabled:opacity-60"
+            >
+              {continueLoading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Saving…
+                </>
+              ) : isLastModule ? (
+                <>
+                  Complete Course
+                  <CheckCircle2 size={16} />
+                </>
+              ) : (
+                <>
+                  Complete & Continue
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

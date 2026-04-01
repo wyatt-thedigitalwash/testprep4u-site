@@ -29,8 +29,8 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Redirect unauthenticated users away from dashboard
-  if (pathname.startsWith("/dashboard") && !user) {
+  // Redirect unauthenticated users away from protected routes
+  if ((pathname.startsWith("/dashboard") || pathname.startsWith("/admin")) && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -54,7 +54,14 @@ export async function middleware(request: NextRequest) {
       url.searchParams.set("course", course);
       url.searchParams.set("autoCheckout", "true");
     } else {
-      url.pathname = "/dashboard";
+      // Check admin status — query own profile (allowed by RLS)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .single();
+
+      url.pathname = profile?.is_admin ? "/admin" : "/dashboard";
     }
     return NextResponse.redirect(url);
   }
@@ -63,5 +70,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/signup", "/forgot-password", "/reset-password"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/login", "/signup", "/forgot-password", "/reset-password"],
 };

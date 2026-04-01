@@ -22,6 +22,7 @@ export function SectionQuizClient({
         quizType="section_quiz"
         sectionNumber={sectionNumber}
         passScore={70}
+        mode="learning"
         onExit={() => router.push(`/dashboard/courses/${courseId}`)}
       />
     </div>

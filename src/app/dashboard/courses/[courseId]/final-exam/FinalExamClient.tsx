@@ -7,7 +7,10 @@ interface FinalExamClientProps {
   courseId: string;
 }
 
-// TODO: Add a countdown timer for the final exam (enforce time limit per FL DFS requirements).
+// ⚠ TODO (COMPLIANCE): Florida DFS may require a timed final exam.
+// Before launch, confirm with legal whether a countdown timer and time limit
+// enforcement are needed. If so, add a timer prop to QuizEngine and enforce
+// the limit both client-side (UI countdown) and server-side (reject late submissions).
 export function FinalExamClient({ courseId }: FinalExamClientProps) {
   const router = useRouter();
 
@@ -18,6 +21,7 @@ export function FinalExamClient({ courseId }: FinalExamClientProps) {
         courseId={courseId}
         quizType="final"
         passScore={70}
+        mode="exam"
         onExit={() => router.push(`/dashboard/courses/${courseId}`)}
       />
     </div>

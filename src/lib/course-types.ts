@@ -81,6 +81,7 @@ export interface CourseDetail {
 export interface ExamAttemptData {
   id: string;
   examType: "practice" | "final";
+  mode: "learning" | "exam";
   score: number;
   totalQuestions: number;
   correctAnswers: number;

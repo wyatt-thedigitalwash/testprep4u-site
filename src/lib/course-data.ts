@@ -491,7 +491,7 @@ export async function getExamAttempts(
   const { data } = await supabase
     .from("exam_attempts")
     .select(
-      "id, exam_type, score, total_questions, correct_answers, passed, time_spent_seconds, attempted_at"
+      "id, exam_type, mode, score, total_questions, correct_answers, passed, time_spent_seconds, attempted_at"
     )
     .eq("enrollment_id", enrollment.id)
     .order("attempted_at");
@@ -499,6 +499,7 @@ export async function getExamAttempts(
   return (data || []).map((a) => ({
     id: a.id,
     examType: a.exam_type as "practice" | "final",
+    mode: (a.mode || "learning") as "learning" | "exam",
     score: a.score,
     totalQuestions: a.total_questions,
     correctAnswers: a.correct_answers,

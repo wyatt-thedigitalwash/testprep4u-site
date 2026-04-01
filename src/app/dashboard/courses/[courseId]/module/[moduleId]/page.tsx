@@ -173,6 +173,43 @@ export default async function ModulePage({ params }: Props) {
     redirect(`/dashboard/courses/${courseId}`);
   }
 
+  // Compute the next sequential module for "Complete & Continue" navigation
+  // Get all sections with their modules, ordered
+  const { data: allSectionsWithModules } = await supabase
+    .from("course_sections")
+    .select(
+      `
+      id,
+      sort_order,
+      course_modules (
+        id,
+        sort_order
+      )
+    `
+    )
+    .eq("course_id", course.id)
+    .order("sort_order");
+
+  // Build a flat ordered list of all module IDs
+  const allModulesOrdered: string[] = [];
+  for (const s of (allSectionsWithModules || []).sort(
+    (a, b) => a.sort_order - b.sort_order
+  )) {
+    const modules = (
+      s.course_modules as Array<{ id: string; sort_order: number }>
+    ).sort((a, b) => a.sort_order - b.sort_order);
+    for (const m of modules) {
+      allModulesOrdered.push(m.id);
+    }
+  }
+
+  const currentIdx = allModulesOrdered.indexOf(moduleId);
+  const nextModuleId =
+    currentIdx >= 0 && currentIdx < allModulesOrdered.length - 1
+      ? allModulesOrdered[currentIdx + 1]
+      : null;
+  const isLastModule = currentIdx === allModulesOrdered.length - 1;
+
   // Build learner name in "Last, First" format for SCORM
   const meta = user.user_metadata || {};
   const fullName = meta.full_name || meta.name || "";
@@ -192,6 +229,8 @@ export default async function ModulePage({ params }: Props) {
       enrollmentId={enrollment.id}
       learnerId={user.id}
       learnerName={learnerName}
+      nextModuleId={nextModuleId}
+      isLastModule={isLastModule}
     />
   );
 }

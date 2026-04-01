@@ -5,6 +5,11 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/send-email";
 import { enrollmentEmail } from "@/lib/emails";
+import {
+  getRevenueFromSession,
+  captureBillingAddress as captureBillingFromSessionId,
+  type RevenueFields,
+} from "@/lib/stripe-revenue";
 
 const TIER_ACCESS_MONTHS: Record<string, number> = {
   essentials: 6,
@@ -59,6 +64,202 @@ export async function POST(request: Request) {
   return NextResponse.json({ received: true });
 }
 
+/* ── Shared: create commission payout if affiliate code used ─ */
+
+async function createCommissionPayout(
+  discountCode: string,
+  revenue: RevenueFields,
+  stripeSessionId: string,
+  supabase: ReturnType<typeof createAdminClient>,
+  logPrefix: string
+) {
+  // Look up the discount code with its affiliate
+  const { data: discountRow } = await supabase
+    .from("discount_codes")
+    .select("id, affiliate_id")
+    .eq("code", discountCode)
+    .maybeSingle();
+
+  if (!discountRow?.affiliate_id) return;
+
+  // Look up the affiliate
+  const { data: affiliate } = await supabase
+    .from("affiliates")
+    .select("id, commission_rate, commission_type, is_active")
+    .eq("id", discountRow.affiliate_id)
+    .single();
+
+  if (!affiliate || !affiliate.is_active) {
+    console.log(`${logPrefix} Affiliate not found or inactive — skipping commission`);
+    return;
+  }
+
+  // Find the redemption record for this session
+  const { data: redemption } = await supabase
+    .from("discount_code_redemptions")
+    .select("id")
+    .eq("stripe_checkout_session_id", stripeSessionId)
+    .maybeSingle();
+
+  if (!redemption) {
+    console.error(`${logPrefix} No redemption found for session — skipping commission`);
+    return;
+  }
+
+  // Calculate commission
+  const commissionAmount =
+    affiliate.commission_type === "percentage"
+      ? Math.round(revenue.net_amount * (affiliate.commission_rate / 100) * 100) / 100
+      : affiliate.commission_rate;
+
+  const grossProfit =
+    Math.round((revenue.net_amount - commissionAmount) * 100) / 100;
+
+  const { error } = await supabase.from("commission_payouts").insert({
+    affiliate_id: affiliate.id,
+    redemption_id: redemption.id,
+    commission_amount: commissionAmount,
+    gross_profit: grossProfit,
+    status: "pending",
+  });
+
+  if (error) {
+    console.error(`${logPrefix} Commission payout insert FAILED:`, error);
+  } else {
+    console.log(`${logPrefix} Commission payout created | amount: $${commissionAmount} | gross_profit: $${grossProfit}`);
+  }
+}
+
+/* ── Shared: track discount redemption from either path ───── */
+
+async function trackDiscountRedemption(
+  session: Stripe.Checkout.Session,
+  userId: string,
+  stripeSessionId: string,
+  revenue: RevenueFields,
+  supabase: ReturnType<typeof createAdminClient>,
+  logPrefix: string
+) {
+  // Path 1: code was pre-applied on pricing page (stored in metadata)
+  let resolvedCode = session.metadata?.discount_code || "";
+
+  // Path 2: code entered on Stripe's checkout page (not in metadata)
+  // Detect by retrieving the expanded session and checking discount info
+  if (!resolvedCode) {
+    try {
+      const expanded = await getStripe().checkout.sessions.retrieve(
+        stripeSessionId,
+        { expand: ["total_details.breakdown"] }
+      );
+
+      const discounts = expanded.total_details?.breakdown?.discounts;
+      if (discounts && discounts.length > 0) {
+        const disc = discounts[0].discount;
+
+        // Try to match by promotion_code ID (stored as stripe_promo_code_id)
+        const promoId =
+          typeof disc.promotion_code === "string"
+            ? disc.promotion_code
+            : disc.promotion_code?.id;
+
+        if (promoId) {
+          const { data: match } = await supabase
+            .from("discount_codes")
+            .select("code")
+            .eq("stripe_promo_code_id", promoId)
+            .maybeSingle();
+
+          if (match) {
+            resolvedCode = match.code;
+            console.log(
+              `${logPrefix} Discount detected via Stripe checkout page (promo): ${resolvedCode}`
+            );
+          }
+        }
+
+        // Fallback: match by coupon ID prefix convention (DISC_{CODE})
+        if (!resolvedCode && disc.id) {
+          const discId = disc.id;
+          if (discId.startsWith("DISC_")) {
+            const codeFromId = discId.replace(/^DISC_/, "").replace(/_\d+$/, "");
+            const { data: fallback } = await supabase
+              .from("discount_codes")
+              .select("code")
+              .eq("code", codeFromId)
+              .maybeSingle();
+
+            if (fallback) {
+              resolvedCode = fallback.code;
+              console.log(
+                `${logPrefix} Discount detected via coupon ID convention: ${resolvedCode}`
+              );
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`${logPrefix} Failed to check Stripe discount:`, err);
+    }
+  }
+
+  if (!resolvedCode) return;
+
+  console.log(`${logPrefix} Processing discount code redemption: ${resolvedCode}`);
+
+  const { data: discountRow } = await supabase
+    .from("discount_codes")
+    .select("id, discount_type, discount_value")
+    .eq("code", resolvedCode)
+    .maybeSingle();
+
+  if (!discountRow) return;
+
+  // Increment current_uses first to prevent max_uses bypass
+  const { error: usesError } = await supabase.rpc(
+    "increment_discount_uses",
+    { code_id: discountRow.id }
+  );
+
+  if (usesError) {
+    console.error(`${logPrefix} Discount uses increment FAILED:`, usesError);
+  } else {
+    console.log(`${logPrefix} Discount code uses incremented`);
+  }
+
+  // Calculate amount discounted
+  const amountDiscounted =
+    session.amount_total !== null && session.amount_subtotal !== null
+      ? (session.amount_subtotal - session.amount_total) / 100
+      : discountRow.discount_value;
+
+  // Create redemption record
+  const { error: redemptionError } = await supabase
+    .from("discount_code_redemptions")
+    .insert({
+      discount_code_id: discountRow.id,
+      user_id: userId,
+      stripe_checkout_session_id: stripeSessionId,
+      amount_discounted: Math.abs(amountDiscounted),
+    });
+
+  if (redemptionError) {
+    console.error(`${logPrefix} Discount redemption insert FAILED:`, redemptionError);
+  } else {
+    console.log(`${logPrefix} Discount redemption recorded`);
+  }
+
+  // Auto-create commission payout if affiliate code
+  await createCommissionPayout(
+    resolvedCode,
+    revenue,
+    stripeSessionId,
+    supabase,
+    logPrefix
+  );
+}
+
+/* ── Main enrollment handler ────────────────────────────────── */
+
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.user_id;
   const tier = session.metadata?.tier;
@@ -73,6 +274,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     course_slug: courseSlug,
     upgrade: isUpgrade,
   });
+
+  // Handle flash cards add-on purchases (no tier/courseType in metadata)
+  if (session.metadata?.addon === "flash-cards") {
+    // TODO: Implement flash cards purchase flow — update user profile or
+    // add-ons table to grant flash cards access for this user.
+    console.log("[stripe-webhook] Flash cards add-on purchase received | user:", userId, "| session:", session.id);
+    return;
+  }
 
   if (!userId || !tier || !courseType) {
     console.error("[stripe-webhook] Missing required metadata — aborting. Full metadata:", session.metadata);
@@ -152,18 +361,26 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const expiresAt = new Date();
   const targetMonth = expiresAt.getMonth() + accessMonths;
   expiresAt.setMonth(targetMonth);
-  // If the day overflowed into the next month, clamp to last day of target month
   if (expiresAt.getMonth() !== targetMonth % 12) {
-    expiresAt.setDate(0); // Sets to last day of previous month
+    expiresAt.setDate(0);
   }
 
-  // ── Create enrollment ──────────────────────────────────────────
+  // ── Retrieve revenue data from Stripe ─────────────────────────
+  const revenue = await getRevenueFromSession(stripeSessionId);
+  console.log("[stripe-webhook] Revenue data:", revenue);
+
+  // ── Create enrollment (with revenue fields) ───────────────────
   const enrollmentData = {
     user_id: userId,
     course_id: course.id,
     status: "active",
     expires_at: expiresAt.toISOString(),
     stripe_session_id: stripeSessionId,
+    gross_amount: revenue.gross_amount,
+    discount_amount: revenue.discount_amount,
+    tax_amount: revenue.tax_amount,
+    fee_amount: revenue.fee_amount,
+    net_amount: revenue.net_amount,
   };
   console.log("[stripe-webhook] Creating enrollment:", enrollmentData);
 
@@ -179,7 +396,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
   console.log("[stripe-webhook] Enrollment insert SUCCESS — ID:", insertedEnrollment?.id);
 
-  // ── Update profile ─────────────────────────────────────────────
+  // ── Update profile (tier + billing address) ───────────────────
   const customerId =
     typeof session.customer === "string"
       ? session.customer
@@ -201,6 +418,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   } else {
     console.log("[stripe-webhook] Profile update SUCCESS");
   }
+
+  // Capture billing address from Stripe
+  await captureBillingFromSessionId(session.id, userId, supabase);
+
+  // ── Track discount code redemption ─────────────────────────────
+  // Two paths: (1) code pre-applied on pricing page (in metadata.discount_code),
+  // or (2) code entered on Stripe's checkout page (detected via coupon ID).
+  await trackDiscountRedemption(
+    session,
+    userId,
+    stripeSessionId,
+    revenue,
+    supabase,
+    "[stripe-webhook]"
+  );
 
   // ── Send enrollment confirmation email ─────────────────────────
   console.log("[stripe-webhook] Fetching user data for enrollment email | user:", userId);
@@ -315,24 +547,34 @@ async function handleUpgrade(
   if (additionalMonths > 0) {
     const targetMonth = expiresAt.getMonth() + additionalMonths;
     expiresAt.setMonth(targetMonth);
-    // Clamp month overflow
     if (expiresAt.getMonth() !== targetMonth % 12) {
       expiresAt.setDate(0);
     }
   }
   console.log("[stripe-webhook:upgrade] Extending expiration | additional months:", additionalMonths, "| new expires_at:", expiresAt.toISOString());
 
-  // Update enrollment expiration
+  // ── Retrieve revenue data from Stripe ─────────────────────────
+  const revenue = await getRevenueFromSession(stripeSessionId);
+  console.log("[stripe-webhook:upgrade] Revenue data:", revenue);
+
+  // Update enrollment (expiration + revenue)
   const { error: updateError } = await supabase
     .from("enrollments")
-    .update({ expires_at: expiresAt.toISOString() })
+    .update({
+      expires_at: expiresAt.toISOString(),
+      gross_amount: revenue.gross_amount,
+      discount_amount: revenue.discount_amount,
+      tax_amount: revenue.tax_amount,
+      fee_amount: revenue.fee_amount,
+      net_amount: revenue.net_amount,
+    })
     .eq("id", enrollmentId);
 
   if (updateError) {
-    console.error("[stripe-webhook:upgrade] Enrollment expiration update FAILED:", updateError);
+    console.error("[stripe-webhook:upgrade] Enrollment update FAILED:", updateError);
     return;
   }
-  console.log("[stripe-webhook:upgrade] Enrollment expiration update SUCCESS");
+  console.log("[stripe-webhook:upgrade] Enrollment update SUCCESS");
 
   // Update plan tier
   const customerId =
@@ -356,6 +598,19 @@ async function handleUpgrade(
   } else {
     console.log("[stripe-webhook:upgrade] Profile update SUCCESS");
   }
+
+  // Capture billing address from Stripe
+  await captureBillingFromSessionId(session.id, userId, supabase);
+
+  // ── Track discount code redemption + commission ───────────────
+  await trackDiscountRedemption(
+    session,
+    userId,
+    stripeSessionId,
+    revenue,
+    supabase,
+    "[stripe-webhook:upgrade]"
+  );
 
   // Write idempotency marker
   const { error: markerError } = await supabase.from("time_logs").insert({

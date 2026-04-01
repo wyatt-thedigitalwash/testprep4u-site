@@ -16,8 +16,24 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const userName =
-    user.user_metadata?.full_name || user.email?.split("@")[0] || "Student";
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, plan_tier, is_admin")
+    .eq("id", user.id)
+    .single();
 
-  return <DashboardShell userName={userName}>{children}</DashboardShell>;
+  const userName =
+    profile?.full_name ||
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "Student";
+
+  const userTier = profile?.plan_tier || "essentials";
+  const isAdmin = profile?.is_admin === true;
+
+  return (
+    <DashboardShell userName={userName} userTier={userTier} isAdmin={isAdmin}>
+      {children}
+    </DashboardShell>
+  );
 }

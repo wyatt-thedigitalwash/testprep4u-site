@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, X, Sparkles } from "lucide-react";
+import { Check, X, Sparkles, Tag } from "lucide-react";
 import {
   PRICING_TIERS,
   COURSE_TYPE_LABELS,
@@ -12,6 +12,11 @@ import {
 } from "@/lib/pricing";
 import { useInView } from "@/hooks/useInView";
 import { fadeUp } from "@/lib/animations";
+import {
+  DiscountCodeField,
+  getDiscountedPrice,
+  type AppliedDiscount,
+} from "@/components/ui/DiscountCodeField";
 
 const VALID_COURSE_TYPES: CourseType[] = ["life", "health", "combined"];
 
@@ -44,6 +49,7 @@ function PricingCardsInner({
       : initialType;
 
   const [courseType, setCourseType] = useState<CourseType>(resolvedInitial);
+  const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(null);
   const { ref, isInView } = useInView<HTMLDivElement>({ threshold: 0.05 });
 
   // Show full-screen loading when auto-checkout is triggered
@@ -78,8 +84,17 @@ function PricingCardsInner({
           </div>
         )}
 
+        {/* Discount code field */}
+        <div style={fadeUp(isInView, 50)}>
+          <DiscountCodeField
+            appliedDiscount={appliedDiscount}
+            onApply={setAppliedDiscount}
+            onClear={() => setAppliedDiscount(null)}
+          />
+        </div>
+
         {/* Tier cards */}
-        <div className="grid items-stretch gap-6 md:grid-cols-3">
+        <div className="mt-10 grid items-stretch gap-6 md:grid-cols-3">
           {PRICING_TIERS.map((tier, i) => (
             <TierCard
               key={tier.slug}
@@ -88,6 +103,7 @@ function PricingCardsInner({
               isInView={isInView}
               delay={150 + i * 100}
               autoCheckout={false}
+              appliedDiscount={appliedDiscount}
             />
           ))}
         </div>
@@ -187,15 +203,19 @@ interface TierCardProps {
   isInView: boolean;
   delay: number;
   autoCheckout?: boolean;
+  appliedDiscount: AppliedDiscount | null;
 }
 
-function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardProps) {
+function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDiscount }: TierCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const autoCheckoutFired = useRef(false);
   const price = tier.prices[courseType];
   const isHighlighted = tier.highlighted;
+
+  const discountedPrice = getDiscountedPrice(price, appliedDiscount);
+  const hasDiscount = discountedPrice !== null && discountedPrice < price;
 
   const handleCheckout = useCallback(async () => {
     setLoading(true);
@@ -211,10 +231,15 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardP
         }
       }
 
+      const body: Record<string, string> = { tier: tier.slug, courseType };
+      if (appliedDiscount) {
+        body.discountCode = appliedDiscount.code;
+      }
+
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: tier.slug, courseType }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -250,7 +275,7 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardP
       setError("Something went wrong. Please try again.");
       setLoading(false);
     }
-  }, [tier.slug, courseType, router]);
+  }, [tier.slug, courseType, router, appliedDiscount]);
 
   // Auto-checkout on mount when URL params indicate returning from auth
   useEffect(() => {
@@ -294,10 +319,31 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout }: TierCardP
       {/* Price */}
       <div className="mt-6">
         {price > 0 ? (
-          <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-extrabold text-navy">
-              ${price}
-            </span>
+          <div>
+            <div className="flex items-baseline gap-2">
+              {hasDiscount ? (
+                <>
+                  <span className="text-4xl font-extrabold text-navy">
+                    ${discountedPrice}
+                  </span>
+                  <span className="text-xl font-bold text-gray-400 line-through">
+                    ${price}
+                  </span>
+                </>
+              ) : (
+                <span className="text-4xl font-extrabold text-navy">
+                  ${price}
+                </span>
+              )}
+            </div>
+            {hasDiscount && (
+              <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-success">
+                <Tag size={10} />
+                {appliedDiscount!.discountType === "percentage"
+                  ? `${appliedDiscount!.discountValue}% off`
+                  : `$${appliedDiscount!.discountValue} off`}
+              </p>
+            )}
           </div>
         ) : (
           <span className="text-4xl font-extrabold text-navy">

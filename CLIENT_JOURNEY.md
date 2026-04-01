@@ -1,1125 +1,445 @@
-# CLIENT_JOURNEY.md — TestPrep4U Platform Documentation
+# CLIENT_JOURNEY.md — How TestPrep4U Works
 
-Complete end-to-end documentation of every process in the TestPrep4U platform, traced through the actual codebase.
+A plain-English walkthrough of the entire TestPrep4U platform experience, from first visit to certificate in hand.
 
 ---
 
 ## Table of Contents
 
-1. [New User Signup](#1-new-user-signup)
-2. [Course Purchase](#2-course-purchase)
-3. [Student Dashboard](#3-student-dashboard)
-4. [Course Progression](#4-course-progression)
-5. [SCORM Integration](#5-scorm-integration)
-6. [Quiz & Exam Engine](#6-quiz--exam-engine)
-7. [Time Tracking](#7-time-tracking)
-8. [Completion Flow](#8-completion-flow)
-9. [Upgrade Flow](#9-upgrade-flow)
-10. [Email System](#10-email-system)
-11. [Security](#11-security)
-12. [Infrastructure](#12-infrastructure)
+1. [The Marketing Site](#1-the-marketing-site)
+2. [Signing Up and Paying](#2-signing-up-and-paying)
+3. [The Student Dashboard](#3-the-student-dashboard)
+4. [Working Through the Course](#4-working-through-the-course)
+5. [Quizzes and Exams](#5-quizzes-and-exams)
+6. [Time Tracking](#6-time-tracking)
+7. [Finishing the Course](#7-finishing-the-course)
+8. [Upgrading Your Plan](#8-upgrading-your-plan)
+9. [Emails Along the Way](#9-emails-along-the-way)
+10. [Behind the Scenes](#10-behind-the-scenes)
 
 ---
 
-## 1. New User Signup
+## 1. The Marketing Site
 
-### Pages Involved
+### What a Visitor Sees
 
-| Route | File | Type |
-|-------|------|------|
-| `/signup` | `src/app/(auth)/signup/page.tsx` | Client component |
-| `/login` | `src/app/(auth)/login/page.tsx` | Client component |
-| `/forgot-password` | `src/app/(auth)/forgot-password/page.tsx` | Client component |
-| `/reset-password` | `src/app/(auth)/reset-password/page.tsx` | Client component |
-| `/auth/callback` | `src/app/auth/callback/route.ts` | API route (GET) |
+When someone lands on testprep4u.com, they see a public marketing site designed to explain what the platform offers and convert them into a student. The homepage walks them through several sections in order:
 
-### Signup Form Fields
+1. **Hero** — A full-screen navy banner with the main headline, key stats, and two call-to-action buttons ("Start Learning Now" and "Get Started").
 
-1. **Full name** (`fullName`) — text, required, placeholder "Alex Johnson"
-2. **Email** (`email`) — email, required, placeholder "you@example.com"
-3. **Password** (`password`) — password, required, min 8 chars, with Eye/EyeOff visibility toggle
-4. **State** (`state`) — select dropdown, required, currently only `[{ value: "FL", label: "Florida" }]`
+2. **Feature Grid** — Six cards highlighting what makes the platform different (online and on-demand, state-specific content, structured learning, smart practice exams, study community, career-focused).
 
-A "Back to website" link below the form links to `/` for users who navigated here by mistake.
+3. **Our Courses** — Three cards for the available courses: Florida Life Insurance, Florida Health Insurance, and Florida Life & Health Combined. Each card shows estimated hours, number of chapters, and a link to the course's product page.
 
-### Signup Flow Step by Step
+4. **How It Works** — Three numbered steps explaining the process: pick your course, study at your own pace, pass and get licensed.
 
-1. **User submits the form.** Client-side validates password >= 8 characters.
+5. **Pass Guarantee** — A gradient banner explaining the first-time pass guarantee (available on Pro and Premium plans).
 
-2. **`signup()` helper** (`src/lib/supabase-auth.ts`) calls Supabase:
-   ```
-   supabase.auth.signUp({
-     email,
-     password,
-     options: {
-       data: { full_name: fullName, state: state },
-       emailRedirectTo: `${origin}/auth/callback?next=${redirectTo}`
-     }
-   })
-   ```
-   - `redirectTo` is set when the user arrived with `?plan=...&course=...` query params (from pricing page). It encodes the return path as `/pricing?plan=pro&course=fl-life&autoCheckout=true`.
-   - The `plan` and `course` params are also stored in `localStorage` as `"pendingCheckout"` as a fallback.
+6. **After You Pass** — Three steps explaining what happens after the student passes the course exam: schedule the state exam, complete fingerprinting, and get appointed by an insurance company.
 
-3. **Email-exists detection:** If Supabase returns a user with an empty `identities` array, the signup page shows "An account with this email already exists. Sign in instead."
+7. **Quick Facts** — Statistics about insurance licensing (national pass rates, exam details, study hours).
 
-4. **Success screen** displays: "Check your email — We sent a confirmation link to {email}."
+8. **FAQ Preview** — Seven common questions in an accordion format with a link to the full FAQ page.
 
-5. **Supabase sends a confirmation email** with a link to `/auth/callback?code=XXX&next=/pricing?plan=pro&course=fl-life&autoCheckout=true`.
+9. **Bottom CTA** — A final navy banner encouraging visitors to get started.
 
-6. **User clicks the email link.** The callback route (`src/app/auth/callback/route.ts`) runs:
-   - Exchanges the `code` for a session via `supabase.auth.exchangeCodeForSession(code)`.
-   - Detects new user (created_at within last 5 minutes) and sends a **welcome email** via `welcomeEmail()` template.
-   - Sanitizes the `next` param (must start with `/` and not `//` to prevent open redirects).
-   - Redirects to the `next` URL, or falls back to `/pricing` for new users, `/dashboard` otherwise.
-   - **Error handling:** If the link is expired, denied, or invalid, the callback detects `error_code` / `error_description` params from Supabase and redirects to `/login?error={friendlyMessage}`. Mapped errors include `otp_expired` ("This link has expired"), `access_denied` ("Access was denied"), and `otp_invalid` ("This link is invalid or has already been used").
+### Other Marketing Pages
 
-7. **Database trigger fires** (`supabase/migrations/001_initial_schema.sql`): The `on_auth_user_created` trigger calls `handle_new_user()`, which inserts a row into `profiles`:
-   ```sql
-   INSERT INTO profiles (id, full_name, state, plan_tier)
-   VALUES (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', ''),
-           coalesce(new.raw_user_meta_data ->> 'state', ''), null);
-   ```
-   This runs as `SECURITY DEFINER` (service role context) so it bypasses RLS.
+Beyond the homepage, visitors can browse:
 
-### Login Flow
+- **Course product pages** — Dedicated pages for Life, Health, and Combined courses with detailed descriptions, curriculum outlines, and pricing.
+- **How to Get Your Insurance License** — A six-step guide to the licensing process.
+- **Pricing** — Side-by-side comparison of the three plans (Essentials, Pro, Premium) with a toggle to switch between course types.
+- **About** — The story behind TestPrep4U.
+- **FAQ** — Full searchable FAQ with structured data for search engines.
+- **Contact** — A contact form that sends an email to the support team and a confirmation to the visitor.
+- **Florida State Page** — State-specific information about Florida insurance licensing requirements.
 
-1. User submits email + password (password field has Eye/EyeOff visibility toggle). `login()` helper calls `supabase.auth.signInWithPassword()`.
-2. Specific error messages are mapped:
-   - `"Invalid login credentials"` → "Incorrect email or password."
-   - `"Email not confirmed"` → "Please confirm your email address before signing in." — also shows a **"Resend confirmation email"** button that calls `resendConfirmation()` (`supabase.auth.resend({ type: "signup", email })`). On success, displays "Confirmation email sent!" toast.
-   - Rate limit errors → "Too many login attempts. Please wait."
-3. **Callback error display:** If the user arrives with `?error=...` (from an expired/invalid auth callback link), the error message is displayed at the top of the form and cleaned from the URL via `history.replaceState`.
-4. After successful login:
-   - If `plan` + `course` params exist → redirect to `/pricing?plan=X&course=Y&autoCheckout=true`.
-   - Otherwise → fetch `GET /api/user/has-enrollments` to check if user has active enrollments.
-     - Has enrollments → redirect to `/dashboard`.
-     - No enrollments → redirect to `/pricing`.
+### The Navbar
 
-### Password Reset Flow
+The navigation bar at the top is sticky and changes slightly based on whether the visitor is logged in:
 
-1. `/forgot-password` — User enters email. Calls `supabase.auth.resetPasswordForEmail()` with redirect to `/auth/callback?next=/reset-password`.
-2. Supabase sends reset email with link to `/auth/callback?code=XXX&next=/reset-password`.
-3. Callback exchanges code for session. Detects `"reset-password"` in the next param and skips the welcome email.
-4. Redirects to `/reset-password` where user enters new password + confirmation. Both password fields have Eye/EyeOff visibility toggles.
-5. Calls `supabase.auth.updateUser({ password })`, then redirects to `/dashboard`.
-
-### Middleware Protection (`src/middleware.ts`)
-
-Runs on every request matching the configured routes:
-
-```
-matcher: ["/dashboard/:path*", "/login", "/signup", "/forgot-password", "/reset-password"]
-```
-
-| Condition | Action |
-|-----------|--------|
-| Unauthenticated + `/dashboard/*` | Redirect to `/login` |
-| Authenticated + `/login`, `/signup`, or `/forgot-password` | Redirect to `/dashboard` (or `/pricing` if plan/course params present) |
-
-The middleware also refreshes the Supabase session on every matched request.
-
-### Navbar Integration (`src/components/layout/Navbar.tsx`)
-
-The navbar checks for an active session on mount via `getSession()`:
-- **Logged in:** Shows a "Dashboard" button linking to `/dashboard`.
-- **Logged out:** Shows "Log In" link + "Get Started" button linking to `/pricing`.
+- **Not logged in:** Shows "Log In" and a "Get Started" button that links to the pricing page.
+- **Logged in:** The "Get Started" button changes to "Dashboard" and links directly to the student's dashboard.
 
 ---
 
-## 2. Course Purchase
+## 2. Signing Up and Paying
 
-### Pricing Page Flow
+### The Typical Journey
 
-**Files:** `src/app/(marketing)/pricing/page.tsx`, `src/components/ui/PricingCards.tsx`
+Most users first land on the pricing page (either directly or by clicking a CTA elsewhere on the site). Here's what happens step by step:
 
-The pricing page renders `<PricingCards>` which reads URL query params:
-- `?course=life|health|combined` — pre-selects course type toggle
-- `?plan=essentials|pro|premium` — pre-selects tier
-- `?autoCheckout=true` — auto-triggers checkout on load (used after signup redirect)
+1. **They pick a plan.** The pricing page shows three tiers side by side. They can toggle between Life, Health, and Combined courses at the top. Each tier card shows the price, what's included, and a "Get Started" button. The course name (e.g., "Florida Life Insurance") appears below the price so it's clear which course they're buying.
 
-**Auto-Checkout Loading State:** When `autoCheckout=true` is detected with a valid `plan` param, the component renders a full-screen `<AutoCheckoutLoader>` instead of the pricing cards. This branded loading screen shows the TestPrep4U logo, a spinner, and "Setting up your course..." message. It checks for existing enrollments first (redirects to dashboard if already enrolled), then initiates the Stripe checkout. If the checkout fails, it reloads without the `autoCheckout` param to show the normal pricing cards.
+2. **They click "Get Started."** Since they're not logged in yet, the platform saves their chosen plan and course, then sends them to the signup page.
 
-Each tier card displays the **course full name** (e.g., "Florida Life Insurance") below the price via `COURSE_FULL_NAMES[courseType]` from `src/lib/pricing.ts`, so toggling between Life/Health shows a visible change even when prices are identical.
+3. **They create an account.** The signup form asks for their full name, email, password, and state (currently Florida only). There's a show/hide toggle on the password field. If they landed here by accident, there's a "Back to website" link at the bottom.
 
-### Tier Structure (`src/lib/pricing.ts`)
+4. **They confirm their email.** After submitting the signup form, they see a "Check your email" screen. They need to click the confirmation link in their inbox before they can log in. The confirmation link remembers what plan and course they were trying to buy.
 
-| Tier | Access | Life/Health Price | Combined Price |
-|------|--------|-------------------|----------------|
-| Essentials | 6 months | $149 | $179 |
-| Pro | 9 months | $219 | $259 |
-| Premium | 12 months | $319 | $369 |
+5. **They're redirected to checkout.** After clicking the email link, the platform logs them in and takes them back to the pricing page. Instead of showing the pricing cards again, it shows a branded loading screen ("Setting up your course...") and automatically starts the Stripe checkout process. This avoids any confusing flash of the pricing page.
 
-### Stripe Price IDs (`src/lib/stripe.ts`)
+6. **They pay on Stripe.** Stripe handles the actual payment on its own secure checkout page. It's a one-time payment (not a subscription).
 
-Each tier + course type maps to a Stripe Price ID:
-```
-essentials-life    → price_1TFHFmDpayTd63L242sqQPIQ
-pro-life           → price_1TFHTTDpayTd63L2KP4CvRCX
-premium-life       → price_1TFHTTDpayTd63L2qqQBXf8A
-essentials-health  → price_1TFHGzDpayTd63L2GrHVjCZC
-pro-health         → price_1TFHUCDpayTd63L2VSAMjZn7
-premium-health     → price_1TFHUCDpayTd63L2nQOOYhix
-essentials-combined→ price_1TFHHYDpayTd63L22KAIJrp6
-pro-combined       → price_1TFHVDDpayTd63L2F85ZIAbG
-premium-combined   → price_1TFHVDDpayTd63L2vdktgL3c
-```
+7. **They land on their dashboard.** After paying, Stripe sends them back to their new student dashboard with a success message.
 
-### Checkout Button Behavior
+### What Happens Behind the Scenes During Payment
 
-When user clicks "Get Started" on a tier:
+When Stripe processes the payment, it sends a notification back to TestPrep4U. The platform then:
 
-1. **Check enrollment status** via `GET /api/user/has-enrollments`.
-2. If **401 (not logged in)**:
-   - Store `{ plan, course }` in localStorage as `"pendingCheckout"`.
-   - Redirect to `/signup?plan={tier}&course={courseType}`.
-3. If **logged in**:
-   - Call `POST /api/checkout` with `{ tier, courseType }`.
-   - Redirect to the Stripe Checkout URL returned.
-4. After checkout redirect, clear `autoCheckout` from URL to prevent re-trigger on back navigation.
+- Creates an enrollment record for the student, linking them to the course they bought.
+- Sets an access expiration date based on their plan (Essentials = 6 months, Pro = 9 months, Premium = 12 months).
+- Saves their payment information for future reference.
+- Sends them an enrollment confirmation email with their course details and access period.
 
-### Checkout API Route (`src/app/api/checkout/route.ts`)
+This process is designed to only create one enrollment per payment, even if Stripe sends the notification more than once.
 
-**POST /api/checkout**
+### Pricing
 
-Request: `{ tier: string, courseType: string }`
+| Plan | Life / Health | Combined | Access Period |
+|------|--------------|----------|---------------|
+| Essentials | $149 | $179 | 6 months |
+| Pro | $219 | $259 | 9 months |
+| Premium | $319 | $369 | 12 months |
 
-1. Authenticates via Supabase. Returns 401 if not logged in.
-2. Validates tier and courseType values.
-3. Looks up the Stripe Price ID via `getStripePriceId(tier, courseType)`.
-4. Fetches user's `stripe_customer_id` and `state` from `profiles`.
-5. Looks up course by type + user's state (defaults to "FL").
-6. Creates a Stripe Checkout Session:
+All plans include the same core course content. Higher tiers add study tools, more practice exams, support options, and longer access.
 
-```
-mode: "payment" (one-time)
-payment_method_types: ["card"]
-success_url: {origin}/dashboard?checkout=success
-cancel_url: {origin}/pricing?checkout=cancelled&plan={tier}&course={courseType}
-metadata: {
-  user_id: <uuid>,
-  tier: "pro",
-  course_type: "life",
-  course_slug: "fl-life"
-}
-```
+### Returning Users
 
-If the user has an existing `stripe_customer_id`, it's passed as `customer`. Otherwise, `customer_email` is used.
+If someone already has an account:
 
-Returns: `{ url: "https://checkout.stripe.com/..." }`
+- **Logging in with a plan selected:** If they chose a plan on the pricing page first, they'll be taken straight to checkout after logging in.
+- **Logging in without a plan:** The platform checks if they have any active enrollments. If yes, they go to the dashboard. If no, they go to the pricing page.
 
-### Stripe Webhook — Enrollment Creation (`src/app/api/webhooks/stripe/route.ts`)
+### Password Issues
 
-**POST /api/webhooks/stripe** — handles `checkout.session.completed`
-
-1. **Verify signature** using `STRIPE_WEBHOOK_SECRET`. Returns 400 if invalid. Returns 500 if secret is not configured.
-
-2. **Extract metadata** from the session: `user_id`, `tier`, `course_type`, `course_slug`, and `upgrade` flag.
-
-3. **Check for upgrade** — if `metadata.upgrade === "true"`, delegate to upgrade handler (see [Section 9](#9-upgrade-flow)).
-
-4. **Look up course** by slug (preferred) or by type (legacy fallback). Only active courses.
-
-5. **Idempotency checks:**
-   - Primary: Check if an enrollment already exists with this `stripe_session_id`.
-   - Secondary: Check if an active enrollment exists for this user + course.
-
-6. **Calculate expiration** with month-overflow clamping:
-   ```js
-   const TIER_ACCESS_MONTHS = { essentials: 6, pro: 9, premium: 12 };
-   const accessMonths = TIER_ACCESS_MONTHS[tier] ?? 6;
-   const expiresAt = new Date();
-   const targetMonth = expiresAt.getMonth() + accessMonths;
-   expiresAt.setMonth(targetMonth);
-   // Clamp: e.g., Jan 31 + 1 month = Feb 28, not Mar 3
-   if (expiresAt.getMonth() !== targetMonth % 12) {
-     expiresAt.setDate(0); // last day of previous month
-   }
-   ```
-
-7. **Create enrollment:**
-   ```sql
-   INSERT INTO enrollments (user_id, course_id, status, expires_at, stripe_session_id)
-   VALUES ($1, $2, 'active', $3, $4)
-   ```
-
-8. **Update profile:** Sets `plan_tier` and `stripe_customer_id` (if available).
-
-9. **Send enrollment email** via `enrollmentEmail()` template with course name, tier, access months, and expiration date.
-
-### Complete Purchase Journey (New User)
-
-```
-User clicks "Get Started" on Pro Life tier
-  → /api/user/has-enrollments returns 401
-  → Store pendingCheckout, redirect to /signup?plan=pro&course=life
-  → User fills signup form
-  → Supabase sends confirmation email (link: /auth/callback?next=/pricing?plan=pro&course=life&autoCheckout=true)
-  → User clicks email link
-  → /auth/callback exchanges code, sends welcome email, redirects to pricing
-  → PricingCards detects autoCheckout=true, triggers handleCheckout
-  → POST /api/checkout → Stripe Checkout URL
-  → User completes payment on Stripe
-  → Stripe fires checkout.session.completed webhook
-  → Webhook creates enrollment (expires in 9 months), updates profile, sends enrollment email
-  → User redirected to /dashboard?checkout=success
-```
+- **Forgot password:** They enter their email on the forgot-password page, receive a reset link, and set a new password. Both password fields on the reset page have show/hide toggles.
+- **Expired or invalid links:** If a confirmation or reset link has expired, the platform shows a friendly error message on the login page (e.g., "This link has expired. Please try again.") instead of a confusing error.
+- **Unconfirmed email:** If someone tries to log in before confirming their email, the login page shows an error and a "Resend confirmation email" button.
 
 ---
 
-## 3. Student Dashboard
+## 3. The Student Dashboard
 
-### Dashboard Home (`src/app/dashboard/page.tsx`)
+### What Students See When They Log In
 
-**Data loading** (parallel queries via `Promise.all`):
-- `getUserEnrollments()` — fetches all active/completed enrollments that haven't expired
-- `getDashboardStats()` — aggregates study hours, practice exam average, enrollment count
+The dashboard is a completely separate experience from the marketing site — it has its own layout with a sidebar navigation on the left and no marketing header or footer.
 
-**Welcome section:** "Welcome back, {firstName}" — extracted from `user.user_metadata.full_name` or email prefix.
+**Welcome Section:** A personalized greeting ("Welcome back, Alex") at the top.
 
-**Milestone callout:** Blue alert with ShieldCheck icon — "Score 80%+ on 3 practice exams to qualify for the Pass Guarantee."
+**Quick Stats:** Three numbers at a glance:
+- **Study Hours** — Total time spent studying across all courses.
+- **Practice Exam Average** — Their average score on practice exams (or "—" if they haven't taken any yet).
+- **Courses Enrolled** — How many courses they're signed up for.
 
-**Stats grid** (3 columns):
+**Milestone Callout:** A blue banner reminding them about the pass guarantee requirement ("Score 80%+ on 3 practice exams to qualify for the Pass Guarantee").
 
-| Stat | Source | Display |
-|------|--------|---------|
-| Study Hours | `SUM(time_logs.duration_seconds)` across all enrollments, converted to hours | e.g., "24.5" |
-| Practice Exam Avg | `AVG(exam_attempts.score)` where `exam_type = 'practice'` | e.g., "76%" or "—" if none |
-| Courses Enrolled | `COUNT(enrollments)` where status in ('active', 'completed') | e.g., "2" |
+**Course Cards:** Each enrolled course appears as a card showing the course type (Life, Health, or Combined), the course name, enrollment and expiration dates, and a button that says either "Start Course" (if they haven't begun) or "Continue Course" (if they have).
 
-**Enrolled courses section:** 2-column responsive grid of course cards.
-- Each card shows: course type badge, course name, enrollment date, expiration date, and a CTA button.
-- CTA is **"Start Course"** if `hasStarted === false`, otherwise **"Continue Course"**.
-- Links to `/dashboard/courses/{courseSlug}`.
+**No Courses?** If they don't have any enrollments, the dashboard shows a message with a link to the pricing page.
 
-The My Courses page (`/dashboard/courses`) uses the same "Start Course" / "Continue Course" logic.
+### Sidebar Navigation
 
-**Empty state:** If no enrollments, shows "You don't have any active courses yet" with a link to `/pricing`.
+The left sidebar has four main navigation items:
 
-### Dashboard Layout (`src/app/dashboard/layout.tsx`)
+| Item | What It Does |
+|------|-------------|
+| Dashboard | The main overview page described above |
+| My Courses | A grid of all enrolled courses with the same Start/Continue logic |
+| Practice Exams | Shows available practice exams (locked until course sections are complete) |
+| Settings | Profile and account management |
 
-Server component that wraps all `/dashboard/*` pages:
-- Authenticates via `createServerSupabaseClient()`. Redirects to `/login` if no session.
-- Extracts `userName` from user metadata.
-- Renders `<DashboardShell>` with sidebar + top bar (no marketing navbar or footer).
+On mobile, the sidebar becomes a slide-in drawer accessed via a hamburger menu.
 
-### Sidebar (`src/components/dashboard/Sidebar.tsx`)
+A logout button at the bottom of the sidebar opens a confirmation dialog before signing out.
 
-Navigation items:
+### Settings Page
 
-| Label | Route | Icon |
-|-------|-------|------|
-| Dashboard | `/dashboard` | LayoutDashboard |
-| My Courses | `/dashboard/courses` | BookOpen |
-| Practice Exams | `/dashboard/exams` | FileQuestion |
-| Settings | `/dashboard/settings` | Settings |
+The settings page has several sections:
 
-- Desktop: fixed 256px left sidebar.
-- Mobile: slide-in drawer with overlay, toggled by hamburger.
-- Active state: blue left border + blue background tint.
-- Logout button at bottom opens a confirmation modal.
-
-### Settings Page (`src/app/dashboard/settings/page.tsx`)
-
-Displays:
-- **Profile:** Editable via `<ProfileEditor>` component (`src/components/dashboard/ProfileEditor.tsx`). Shows name, email (read-only), phone, and state. A pencil icon toggles edit mode; Cancel reverts to saved values. Saves via `PATCH /api/user/profile` which updates both the `profiles` table and syncs `full_name`/`state` to auth `user_metadata`. Input validation: name 1–100 chars, phone ≤ 20 chars, state must be `"FL"`.
-- **Subscription:** Current tier badge, active status, enrollment date, expiration date, included features list from `PRICING_TIERS`.
-- **Upgrade section:** `<UpgradeSection>` component if not at max tier (see [Section 9](#9-upgrade-flow)).
-- **Support:** Link to `/contact` (opens in new tab).
-- **Upgrade success banner:** Shown when `?upgrade=success` query param is present.
-
-### Practice Exams Index (`src/app/dashboard/exams/page.tsx`)
-
-For each enrolled course:
-- If all sections complete → clickable card with attempt count and latest score, linking to `/dashboard/courses/{slug}/exams`.
-- If sections not complete → grayed-out card with Lock icon and "Complete all course sections to unlock."
+- **Profile:** Students can edit their name, phone number, and state by clicking a pencil icon. Email is read-only (it's tied to their login). Changes save immediately.
+- **Subscription:** Shows their current plan tier, status, enrollment date, expiration date, and a list of features included in their plan.
+- **Upgrade:** If they're not on the highest tier, they'll see upgrade options here (more on this in Section 8).
+- **Support:** A link to the contact page (opens in a new tab).
 
 ---
 
-## 4. Course Progression
+## 4. Working Through the Course
 
-### Course Structure
+### How the Course Is Organized
 
-The FL Life Insurance course is organized as:
+The FL Life Insurance course (as an example) is a 30-hour program organized into sections:
 
-```
-Course (e.g., "fl-life")
-├── Section 0: Course Introduction (1 lesson)
-├── Section 1: General Insurance Concepts (4 lessons + 1 quiz)
-├── Section 2: Life Insurance Products (7 lessons + 1 quiz)
-├── Section 3: Social Security & Retirement (3 lessons + 1 quiz)
-├── Section 4: Florida Laws & Rules (3 lessons + 1 quiz)
-├── Section 5: Exam Preparation (2 lessons)
-├── Practice Exam (native, not SCORM)
-└── Final Exam (native, not SCORM)
-```
+| Section | Title | Contents |
+|---------|-------|----------|
+| 0 | Course Introduction | 1 lesson |
+| 1 | General Insurance Concepts | 4 lessons + 1 quiz |
+| 2 | Life Insurance Products | 7 lessons + 1 quiz |
+| 3 | Social Security & Retirement | 3 lessons + 1 quiz |
+| 4 | Florida Laws & Rules | 3 lessons + 1 quiz |
+| 5 | Exam Preparation | 2 lessons |
+| — | Practice Exam | Unlimited retakes |
+| — | Final Exam | Must pass with 70%+ |
 
-**Database tables:** `course_sections` → `course_modules` (one-to-many)
+Each lesson is a self-contained learning module built with Articulate Rise 360 (an industry-standard e-learning tool). They load inside the platform in a full-screen viewer.
 
-Each module has:
-- `module_type`: `"lesson"` (SCORM content) or `"quiz"` (can be SCORM or native)
-- `scorm_entry_path`: path to SCORM entry HTML; `null` for native quizzes
-- `sort_order`: sequential position within its section
-- `quiz_pass_score`: `70` for section quizzes, `null` for lessons
+### How Students Progress
 
-### Sequential Unlock Logic (`src/lib/course-data.ts` — `computeUnlockState()`)
+The course is strictly sequential — students can't skip ahead:
 
-**Section unlock rules:**
-- Section 0 (Introduction) is always unlocked.
-- Section N (N > 0) unlocks when the previous section's quiz module has `success_status === "passed"`.
-- If the previous section has no quiz, all its modules must have `status === "completed"`.
+1. **Within a section:** They must complete each lesson in order. Lesson 2 doesn't unlock until Lesson 1 is done.
+2. **Between sections:** Each section (except the Introduction and Exam Prep) ends with a quiz. They must score at least 70% on the quiz to unlock the next section. They can retake quizzes as many times as they need.
+3. **Practice Exam:** Unlocks after all sections (0–5) are complete. Not required to pass, but highly recommended.
+4. **Final Exam:** Also unlocks after all sections are complete. Must pass with 70% or higher. Unlimited retakes.
 
-**Module unlock rules within an unlocked section:**
-- First module is always unlocked (if its section is unlocked).
-- Each subsequent lesson requires the previous module to have `status === "completed"`.
-- Quiz modules require all lesson modules in the same section to be completed.
+### The Course Detail Page
 
-### Completion Tracking Per Module
+When a student clicks into a course, they see:
 
-Progress is stored in `module_progress` with a unique constraint on `(enrollment_id, module_id)`:
+- **Progress overview:** A circular progress indicator and a seat time tracker showing how many hours they've logged out of the 30 required.
+- **Section accordion:** Each section is expandable. Locked sections show a lock icon. Inside each section, every lesson and quiz shows its status (Not Started, In Progress, Done, or Locked), time spent, and score (for quizzes).
+- **Final Exam card:** At the bottom, showing whether the student has met the prerequisites to take it.
 
-| Field | Values | Notes |
-|-------|--------|-------|
-| `status` | `not_started`, `in_progress`, `completed` | Overall progression |
-| `completion_status` | `not attempted`, `incomplete`, `completed` | SCORM completion |
-| `success_status` | `unknown`, `passed`, `failed` | SCORM success / quiz pass |
-| `score` | 0–100 or null | Quiz score; highest score is preserved |
-| `time_spent_seconds` | integer | Accumulated module time |
-| `bookmark` | text | SCORM `cmi.location` for resume |
-| `cmi_data` | jsonb | Full SCORM CMI data snapshot |
-| `completed_at` | timestamp | When first completed |
+### What Happens When They Open a Lesson
 
-**Downgrade prevention:** The SCORM save route (`src/app/api/scorm/save/route.ts`) never changes `status` from `"completed"` back to `"in_progress"`, and never changes `success_status` from `"passed"` back to anything else. Score is always `Math.max(newScore, existingScore)`.
+Clicking on an unlocked lesson opens a full-screen viewer with the lesson content. The student sees:
 
-### Quiz Gates Between Sections
+- The lesson content filling the screen (text, images, interactive elements from Articulate Rise).
+- A close button and fullscreen toggle in the top bar.
 
-Section quizzes (the last module in sections 1–4) act as gates:
-- Students must score >= 70% to pass (unlimited retakes allowed).
-- A passed quiz sets `success_status = "passed"` on the quiz module's `module_progress` row.
-- The next section's unlock depends on this `success_status`.
-- On pass, a `sectionCompletedEmail()` is sent.
+The lesson content automatically tracks the student's progress. If they close the lesson partway through, their spot is saved — they'll pick up right where they left off next time.
 
-### Course Detail View (`src/components/dashboard/CourseDetailView.tsx`)
+### What Happens When They Finish a Lesson
 
-Renders an accordion of sections, each expandable to show modules:
-- Locked sections show a Lock icon and disabled expand.
-- Each module shows status (Not Started / In Progress / Done / Locked), time spent, and score (for quizzes).
-- SCORM modules link to `/dashboard/courses/{slug}/module/{moduleId}`.
-- Native quizzes link to `/dashboard/courses/{slug}/quiz/{sectionNumber}`.
-- A seat time tracker shows progress toward the 30-hour requirement.
-- The Final Exam & Certificate card at the bottom shows contextual CTAs based on completion state.
+When a lesson is completed:
 
-**Module completion UX:** When a student returns from completing a SCORM module (via `?completed=moduleId` query param):
-1. A green **completion toast** ("Chapter completed!") appears at the top and auto-dismisses after 3 seconds (CSS `animate-fade-in-down` animation).
-2. The `?completed` param is immediately cleaned from the URL via `history.replaceState`.
-3. The **next available module** is identified by `findNextModule()` — walks sections sequentially to find the next unlocked, incomplete module.
-4. The section containing the next module is **auto-expanded**.
-5. The next module row is **highlighted** with `ring-2 ring-blue-500 ring-offset-1 bg-blue-50`.
-6. After a 300ms delay, the page **auto-scrolls** to the highlighted module via `scrollIntoView({ behavior: "smooth", block: "center" })`.
+1. The platform saves their progress instantly in the background (no waiting).
+2. They're immediately taken back to the course detail page.
+3. A green "Chapter completed!" banner appears briefly at the top (disappears after 3 seconds).
+4. The next available lesson is automatically highlighted with a blue outline, and the page scrolls to it so they can jump right in.
+5. If the next lesson is in a new section, that section automatically expands.
+
+There's no summary screen or extra clicks between finishing one lesson and starting the next — the flow is designed to keep momentum.
+
+### Saving and Resuming
+
+- Progress saves automatically every ~20 seconds while the lesson is open.
+- When the student finishes or closes a lesson, a final save captures everything.
+- If the student closes the browser tab or navigates away unexpectedly, the platform attempts to save their progress one last time.
+- When they return to a lesson later, it resumes exactly where they left off — same scroll position, same progress state.
 
 ---
 
-## 5. SCORM Integration
+## 5. Quizzes and Exams
 
-### How Modules Are Launched
+### Three Types of Assessments
 
-**Route:** `/dashboard/courses/[courseId]/module/[moduleId]` (`src/app/dashboard/courses/[courseId]/module/[moduleId]/page.tsx`)
+The platform has three kinds of tests, and they work slightly differently:
 
-The server component:
-1. Authenticates the user and verifies enrollment.
-2. Fetches the module and its section from the database.
-3. Checks sequential prerequisites — previous module must be completed, section must be unlocked.
-4. If the module is a native quiz (type `"quiz"` without `scorm_entry_path`), redirects to `/dashboard/courses/{slug}/quiz/{sectionNumber}`.
-5. Formats the learner name as "Last, First" for SCORM compliance.
-6. Renders `<ModuleLauncher>`.
+**1. Section Quizzes (after each section)**
+- Delivered as part of the course content (same Articulate Rise format as lessons).
+- Must score 70% or higher to pass.
+- Unlimited retakes.
+- Passing unlocks the next section.
+- Student receives an email when they pass a section quiz.
 
-### ModuleLauncher Component (`src/components/dashboard/ModuleLauncher.tsx`)
+**2. Practice Exams**
+- Built directly into the platform (not in the Articulate Rise format).
+- Available after completing all course sections.
+- 50 questions drawn randomly from the question bank.
+- Unlimited retakes — designed for repetition and improvement.
+- Shows detailed explanations after each question.
+- Provides a topic breakdown showing strong and weak areas.
+- No passing requirement, but 80% is the recommended target.
 
-A full-screen overlay that:
-1. **Fetches saved progress** via `GET /api/scorm/load?enrollmentId=...&moduleId=...` to get previous `cmi_data` for resume.
-2. **Creates a `ScormAPI` instance** with the saved data and mounts it on `window.API_1484_11`.
-3. **Renders an iframe** pointing to the SCORM entry HTML (currently served from `public/` directory).
-4. **Tracks session start time** (`Date.now()`) for elapsed time calculation.
-5. **Immediate navigation on completion:** When the SCORM content calls `Terminate()`, the component fires a **fire-and-forget** save (no `await`) and immediately navigates back to the course detail page with `?completed={moduleId}` if the module was completed. A `hasNavigatedRef` prevents double navigation. There is no session summary overlay — the student returns to the course page instantly.
+**3. Final Exam (Course Exam)**
+- Also built directly into the platform.
+- Available after completing all course sections.
+- 85 questions drawn from the question bank.
+- Must score 70% or higher to pass.
+- Unlimited retakes.
+- Passing triggers an email and unlocks the completion process.
 
-### API_1484_11 Discovery
+### How the Quiz Interface Works
 
-SCORM 2004 content (Articulate Rise 360) searches for `window.API_1484_11` when it loads. The `ScormAPI` class (`src/lib/scorm-api.ts`) implements the full SCORM 2004 3rd Edition API:
+For practice and final exams, students see:
+- One question at a time with four answer options (A–D).
+- A progress bar showing which question they're on.
+- Previous/Next navigation buttons.
+- A question navigator showing all questions at a glance (answered vs. unanswered).
+- A submit button on the last question (only enabled when all questions are answered).
 
-| Method | Purpose |
-|--------|---------|
-| `Initialize("")` | Starts the session. Returns `"true"`. |
-| `Terminate("")` | Ends the session. Accumulates total_time, fires `onTerminate`. |
-| `GetValue(element)` | Reads a CMI data element. Blocks write-only elements. |
-| `SetValue(element, value)` | Sets a CMI data element. Blocks read-only elements. |
-| `Commit("")` | Persists data. Fires `onCommit` for intermediate server save. |
-| `GetLastError()` | Returns the last error code. |
-| `GetErrorString(code)` | Returns human-readable error description. |
-| `GetDiagnostic(code)` | Returns empty string (not implemented). |
+After submitting, they see their score, whether they passed, and a full review with:
+- Each question with their answer and the correct answer.
+- An explanation for each question.
+- A topic breakdown showing how they performed in each subject area.
 
-### What Data Is Captured
+### Questions and Security
 
-**CMI Data Model** — default values initialized in `CMI_DEFAULTS`:
-- `cmi.completion_status` — "not attempted" / "incomplete" / "completed"
-- `cmi.success_status` — "unknown" / "passed" / "failed"
-- `cmi.score.raw`, `cmi.score.scaled`, `cmi.score.min`, `cmi.score.max`
-- `cmi.location` — bookmark for resume
-- `cmi.suspend_data` — content-specific state for resume
-- `cmi.session_time` — ISO 8601 duration for current session
-- `cmi.total_time` — accumulated across all sessions
-- `cmi.exit` — "suspend" / "" / other
-- `cmi.interactions.*` — interaction tracking
-- `cmi.objectives.*` — objective tracking
-
-**Read-only elements** (SetValue rejects): `cmi.completion_threshold`, `cmi.credit`, `cmi.entry`, `cmi.launch_data`, `cmi.learner_id`, `cmi.learner_name`, `cmi.max_time_allowed`, `cmi.mode`, `cmi.scaled_passing_score`, `cmi.time_limit_action`, `cmi.total_time`, `cmi.interactions._count`, `cmi.objectives._count`.
-
-**Write-only elements** (GetValue rejects): `cmi.exit`, `cmi.session_time`.
-
-### How Resume Works
-
-When `initialData` is provided (from a previous session's `cmi_data`):
-1. All saved CMI values are merged on top of defaults.
-2. `previousTotalSeconds` is parsed from `cmi.total_time` for accumulation.
-3. `cmi.entry` is set to `"resume"` if:
-   - The previous session set `cmi.exit = "suspend"`, OR
-   - The content was started but not completed (`completion_status` is not "completed" or "unknown").
-4. `cmi.session_time` and `cmi.exit` are reset for the new session.
-5. Interaction and objective counts are restored.
-
-On `Terminate()`:
-- `cmi.total_time` is updated: `toDuration(previousTotalSeconds + parseDuration(cmi.session_time))`.
-- The `parseDuration()` function handles ISO 8601 durations including days: `P[nD]T[nH][nM][nS]`.
-
-### How Progress Saves
-
-**Intermediate saves (every ~20s):**
-- Rise 360 calls `Commit()` approximately every 20 seconds.
-- `onCommit` callback fires `saveProgress(data, isFinal=false)`.
-- Posts to `POST /api/scorm/save` with `isFinal: false`.
-- Server upserts `module_progress` with CMI data, status, score, bookmark.
-- Time is NOT accumulated on intermediate saves (avoids double-counting).
-- A debounce flag (`saveInFlightRef`) prevents overlapping requests.
-
-**Final save (on Terminate or close):**
-- When content calls `Terminate()`, `onTerminate` fires `saveProgress(data, isFinal=true)` as **fire-and-forget** (no `await`) and immediately navigates back to the course detail page. If the module was completed, the URL includes `?completed={moduleId}` to trigger the completion toast and next-module highlighting.
-- If the user clicks the close button before `Terminate()`, `handleClose()` also fires a fire-and-forget save and navigates back immediately.
-- A `hasNavigatedRef` prevents double navigation if both `onTerminate` and `handleClose` fire in quick succession.
-- With `isFinal: true`, the server:
-  1. Fetches the existing `time_spent_seconds` and adds the new session time.
-  2. Creates a `time_logs` row for the audit trail.
-
-**Tab close / browser navigation:**
-- `beforeunload` event triggers `navigator.sendBeacon("/api/scorm/save", payload)` with `isFinal: true`.
-- sendBeacon is fire-and-forget — it survives page unload.
-
-### SCORM Save Route Details (`src/app/api/scorm/save/route.ts`)
-
-1. Verifies user owns the enrollment.
-2. Maps SCORM statuses to database values.
-3. Computes score: prefers `scoreScaled * 100`, falls back to `scoreRaw`.
-4. Derives `success_status`: uses SCORM-reported value; for quiz modules, falls back to `score >= quiz_pass_score`.
-5. Caps session time at 4 hours (14,400 seconds).
-6. Preserves highest score via `Math.max(newScore, existingScore)`.
-7. Never downgrades `status` from "completed" or `success_status` from "passed".
-8. Only accumulates `time_spent_seconds` and inserts `time_logs` when `isFinal === true`.
-
-### SCORM Load Route (`src/app/api/scorm/load/route.ts`)
-
-**GET /api/scorm/load?enrollmentId=...&moduleId=...**
-
-Returns: `{ cmiData, bookmark, timeSpentSeconds, completionStatus, successStatus, score }` or `{ cmiData: null }` if no prior progress. Uses `.maybeSingle()` so missing rows return null instead of an error.
-
-### Logging
-
-All SCORM API console logging is gated behind `NODE_ENV === "development"` via `scormLog()` / `scormWarn()` helper functions. No SCORM debug output in production.
+The question bank is stored securely. Students never see the correct answers until after they submit — the platform only sends the questions to the browser, grades everything on the server, and then returns the results.
 
 ---
 
-## 6. Quiz & Exam Engine
+## 6. Time Tracking
 
-### Overview
+### Why It Matters
 
-Practice Exams and Final Exams are **NOT delivered via SCORM**. They are built natively using the `question_bank` table and the `<QuizEngine>` component.
+Florida's Department of Financial Services requires students to complete a minimum number of study hours before they can receive their completion certificate. For the Life Insurance course, that's 30 hours.
 
-Section quizzes can be either SCORM-based (with `scorm_entry_path`) or native. When native (no `scorm_entry_path`), they use the same quiz engine.
+TestPrep4U tracks every minute of study time to satisfy this requirement.
 
-### Question Loading (`src/app/api/quiz/start/route.ts`)
+### How It Works
 
-**POST /api/quiz/start** — `{ type, courseId, sectionNumber? }`
+Time is tracked automatically from two sources:
 
-**Input validation:**
-- `sectionNumber` must be a non-negative integer when `type === "section_quiz"`.
+1. **Lesson time:** The clock starts when a student opens a lesson and stops when they close it or finish it. This happens automatically — the student doesn't need to do anything.
 
-**For section quizzes (`type: "section_quiz"`):**
-1. Verifies all lesson modules in the section are completed.
-2. Gets lesson module titles from the section — these are used as topic keys.
-3. Fetches questions from `question_bank` where `exam_type` is `"practice"` or `"both"` and the course matches.
-4. Filters by topic using case-insensitive matching against section lesson titles.
-5. Shuffles and limits to **10 questions**.
+2. **Quiz/exam time:** The clock runs from when the student starts a quiz or exam until they submit it.
 
-**For practice exams (`type: "practice"`):**
-1. Verifies all course modules are completed (all sections done).
-2. Fetches questions with `exam_type` in `["practice", "both"]`.
-3. Shuffles and limits to **50 questions**.
+### What Students See
 
-**For final exams (`type: "final"`):**
-1. Same prerequisite check as practice exams.
-2. Fetches questions with `exam_type` in `["final", "both"]`.
-3. Shuffles and limits to **85 questions**.
+On the course detail page, there's a progress bar showing something like "12.5 / 30 hours" — how many hours they've logged out of the required total.
 
-Questions are fetched via admin client (service role) because `question_bank` RLS restricts access to service role only — this prevents students from reading `correct_index` directly.
+### Safeguards
 
-**Returns:** `{ questions: [{ id, question_text, options, topic }] }` — note that `correct_index` is NOT included.
-
-### QuizEngine Component (`src/components/dashboard/QuizEngine.tsx`)
-
-A single-question-at-a-time interface:
-- Progress bar showing question X of Y.
-- Answer options A–D with selection highlighting.
-- Previous/Next navigation and question navigator dots.
-- Submit button on the last question (requires all questions answered).
-- Tracks elapsed time from mount: `Math.round((Date.now() - startTime) / 1000)`.
-
-### Scoring & Submission (`src/app/api/quiz/submit/route.ts`)
-
-**POST /api/quiz/submit** — `{ type, courseId, sectionNumber?, answers, timeSpentSeconds }`
-
-**Validation:**
-- `type` must be one of `["section_quiz", "practice", "final"]`.
-- Each answer must have `questionId` (string) and `selectedIndex` (number).
-
-**Grading:**
-1. Fetches full question data (including `correct_index`, `explanation`) from `question_bank` via admin client.
-2. Compares each `selectedIndex` to `correct_index`.
-3. Calculates: `score = Math.round((correctAnswers / totalQuestions) * 100)`.
-4. Pass thresholds:
-   - Section quiz: >= 70%
-   - Practice exam: >= 80% (for display label only)
-   - Final exam: >= 70%
-5. Builds per-topic breakdown: `{ topic, correct, total, percentage }`.
-
-**Storage:**
-
-For **section quizzes**:
-- Finds the quiz module in the section.
-- Fetches existing `time_spent_seconds` and adds the new time (accumulated across retakes).
-- Upserts `module_progress` — only marks as "completed" if passed, otherwise "in_progress".
-- On pass: sends `sectionCompletedEmail()`.
-
-For **practice and final exams**:
-- Inserts an `exam_attempts` row with: score, total_questions, correct_answers, passed, time_spent_seconds, and full answer data as JSON.
-- On final exam pass: sends `finalExamPassedEmail()`.
-
-**Time logging:** Inserts a `time_logs` row with source `"quiz"`, `"practice_exam"`, or `"final_exam"`. Capped at 4 hours.
-
-**Returns:** `{ score, passed, totalQuestions, correctAnswers, results, topicBreakdown }`
-
-The `results` array includes each question with the student's answer, correct answer, explanation, and topic — this powers the review screen in QuizEngine.
-
-### Page-Level Access Control
-
-| Page | File | Prerequisites |
-|------|------|---------------|
-| Section Quiz | `src/app/dashboard/courses/[courseId]/quiz/[sectionNumber]/page.tsx` | Section unlocked + all lessons in section completed |
-| Practice Exam | `src/app/dashboard/courses/[courseId]/practice-exam/page.tsx` | `canTakeFinalExam` (all sections complete) |
-| Final Exam | `src/app/dashboard/courses/[courseId]/final-exam/page.tsx` | `canTakeFinalExam` (all sections complete) |
-
-All pages redirect to the course detail page if prerequisites aren't met.
+- **Maximum session length:** No single study session can count for more than 4 hours. This prevents accidental over-counting if someone leaves a lesson open overnight.
+- **Permanent records:** Every study session is logged individually and can never be edited or deleted. This creates an audit trail that satisfies Florida's record-keeping requirements (records are kept for at least 3 years).
+- **Course completion is blocked** until the student has logged enough total hours. Even if they've passed every quiz and the final exam, they can't get their certificate until the hour requirement is met.
 
 ---
 
-## 7. Time Tracking
+## 7. Finishing the Course
 
-### How Seat Time Is Recorded
+### The Five Requirements
 
-Time is tracked from two sources:
+To complete the course and receive a certificate, a student must satisfy all five of these:
 
-**1. SCORM module sessions** (`source: "scorm"`):
-- Elapsed time calculated client-side: `Date.now() - sessionStartRef.current`.
-- Sent to `/api/scorm/save` with `isFinal: true` on Terminate, close, or tab close.
-- Server caps at 4 hours (14,400 seconds) per session.
-- A `time_logs` row is created with `started_at` (back-calculated), `ended_at`, and `duration_seconds`.
-- `module_progress.time_spent_seconds` is incremented by the capped session time.
+| # | Requirement | What It Means |
+|---|-------------|--------------|
+| 1 | All lessons completed | Every lesson in every section must be finished |
+| 2 | All section quizzes passed | Each section quiz must be passed with 70%+ |
+| 3 | Final exam passed | Score 70% or higher on the final exam |
+| 4 | 30 hours of study time | Total logged time must meet Florida's requirement |
+| 5 | Self-study affidavit signed | Student must certify they personally completed all work |
 
-**2. Quiz/exam sessions** (`source: "quiz"`, `"practice_exam"`, or `"final_exam"`):
-- Elapsed time calculated client-side in QuizEngine: `Math.round((Date.now() - startTime) / 1000)`.
-- Sent to `/api/quiz/submit` as `timeSpentSeconds`.
-- Server caps at 4 hours (14,400 seconds).
-- A `time_logs` row is created.
-- For section quizzes: `module_progress.time_spent_seconds` is accumulated across retakes.
+### The Affidavit
 
-### 4-Hour Session Cap
+Once the first four requirements are met, the student can access the self-study affidavit page. This is a legal attestation where the student confirms:
 
-Both the SCORM save route and quiz submit route enforce a maximum of 14,400 seconds per session:
+1. They personally completed all course modules.
+2. They didn't receive unauthorized assistance.
+3. Their logged study hours are accurate.
+4. They understand the penalties for false statements.
+5. They know their records may be subject to audit.
 
-```js
-const MAX_SESSION_SECONDS = 14400;
-const cappedTime = Math.min(Math.floor(rawTime), MAX_SESSION_SECONDS);
-```
+To sign, they check an "I agree" box and type their full name as a digital signature. The platform records the exact time, their IP address, browser information, and typed name for compliance purposes.
 
-The SCORM save route also validates the input is a positive finite number:
-```js
-const rawSessionTime =
-  typeof sessionTimeSeconds === "number" &&
-  Number.isFinite(sessionTimeSeconds) &&
-  sessionTimeSeconds > 0
-    ? sessionTimeSeconds
-    : 0;
-```
+### The Certificate
 
-### time_logs Audit Trail
+After the affidavit is signed, the student can generate their completion certificate. The certificate includes:
 
-The `time_logs` table is the immutable audit trail for Florida DFS compliance:
+- Their name
+- The program name (e.g., "Florida 2-14 Life Including Annuities & Variable Contracts Pre-Licensing")
+- Total hours completed
+- Completion date
+- A unique certificate number (e.g., TP4U-FL-LIFE-2026-48291037)
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `enrollment_id` | uuid | FK to enrollments |
-| `module_id` | uuid | nullable (null for exam time) |
-| `started_at` | timestamptz | Session start |
-| `ended_at` | timestamptz | Session end |
-| `duration_seconds` | integer | Capped session duration |
-| `source` | text | `"scorm"`, `"quiz"`, `"practice_exam"`, `"final_exam"`, or `"upgrade:*"` |
+The certificate is generated as a PDF that they can download. It's also stored securely and can be re-downloaded at any time.
 
-**Immutability:** The table has RLS policies for SELECT and INSERT only — no UPDATE or DELETE policies exist. Records are never modified or removed.
+The student receives an email with their certificate number and next steps for getting their actual insurance license.
 
-**Retention:** Records are retained for 3+ years per Florida DFS requirements.
+### After the Certificate
 
-### 30-Hour Requirement for Florida DFS
+The certificate page also provides guidance on next steps:
 
-The total seat time for an enrollment is calculated as:
-```sql
-SELECT SUM(duration_seconds) FROM time_logs WHERE enrollment_id = $1
-```
+1. **Schedule the state exam** through Pearson VUE (the testing provider).
+2. **Complete fingerprinting** through FieldPrint.
+3. **Get appointed** by an insurance company.
 
-This is compared against `courses.required_hours * 3600` (30 hours = 108,000 seconds for FL Life).
-
-The seat time progress is displayed on the course detail page as a progress bar with "X.X / 30h" format.
-
-Course completion is blocked until this requirement is met — it's one of the 5 prerequisites checked by the affidavit and certificate routes.
+The completion certificate is proof of pre-licensing education — it's required to sit for the state licensing exam, but it's not the license itself.
 
 ---
 
-## 8. Completion Flow
+## 8. Upgrading Your Plan
 
-### The 5 Prerequisites
+### How It Works
 
-All 5 conditions must be true before a student can receive their certificate:
+Students on Essentials or Pro can upgrade to a higher tier at any time from the Settings page. The upgrade section shows:
 
-| # | Requirement | How It's Checked |
-|---|-------------|-----------------|
-| 1 | All SCORM modules completed | Every `module_progress` row has `status = "completed"` |
-| 2 | All section quizzes passed | Every quiz module's `module_progress` has `success_status = "passed"` |
-| 3 | Final exam passed (>= 70%) | At least one `exam_attempts` row with `exam_type = "final"` and `passed = true` |
-| 4 | 30 hours of seat time | `SUM(time_logs.duration_seconds) >= courses.required_hours * 3600` |
-| 5 | Self-study affidavit signed | `enrollments.affidavit_accepted_at IS NOT NULL` |
+- What new features they'd get with the upgrade.
+- How many additional months of access they'd receive.
+- The price difference (they only pay the difference between what they already paid and the higher tier's price).
+- A breakdown of the calculation (e.g., "Pro ($219) - Essentials ($149) = $70").
 
-These are validated independently by:
-- `src/lib/course-data.ts` — `getCourseDetail()` computes boolean flags for the UI
-- `src/app/api/affidavit/route.ts` — validates prerequisites 1–4 before allowing signing
-- `src/app/api/certificates/route.ts` — validates all 5 prerequisites before generating
+### The Upgrade Process
 
-### Step 1: Affidavit Page
-
-**Route:** `/dashboard/courses/[courseId]/affidavit` (`src/app/dashboard/courses/[courseId]/affidavit/page.tsx`)
-
-**Access control:** Server-side checks:
-- `allSectionsComplete` — all modules done
-- `finalExamPassed` — final exam passed
-- `meetsHourRequirement` — 30 hours met
-- `!hasAffidavit` — not already signed (redirects to certificate page if already signed)
-
-### Step 2: Affidavit Form (`src/components/dashboard/AffidavitForm.tsx`)
-
-The form presents 5 numbered attestation points:
-1. Personal completion of all course modules
-2. No unauthorized assistance
-3. Total hours logged accurately
-4. Understanding of penalties for false statements
-5. Knowledge of audit records and potential regulatory disclosure
-
-The student must:
-- Check an "I agree" checkbox
-- Type their full name (digital signature, min 2 characters)
-- Click "Sign & Submit"
-
-### Step 3: Affidavit API (`src/app/api/affidavit/route.ts`)
-
-**POST /api/affidavit** — `{ enrollmentId, typedName }`
-
-Validation:
-- `typedName` must be non-empty and <= 200 characters.
-- Verifies enrollment ownership.
-- Checks affidavit not already signed (409 if duplicate).
-- Validates all 5 prerequisites except #5 (this IS step 5).
-
-**Special for L12:** Also verifies quiz modules have `success_status === "passed"`, not just `status === "completed"`.
-
-Records:
-```sql
-UPDATE enrollments SET
-  affidavit_accepted_at = now(),
-  affidavit_ip = <x-forwarded-for>,
-  affidavit_user_agent = <user-agent>,
-  affidavit_typed_name = <trimmed name>
-WHERE id = $1
-```
-
-Uses admin client (service role) because enrollment updates are restricted to service role via RLS.
-
-### Step 4: Certificate Page
-
-**Route:** `/dashboard/courses/[courseId]/certificate` (`src/app/dashboard/courses/[courseId]/certificate/page.tsx`)
-
-Displays:
-- Congratulations header
-- Certificate preview card (number, student name, program, hours, date)
-- `<CertificateActions>` component for generate/download
-- Completion checklist (all 5 prerequisites + certificate generated)
-- Next steps: schedule state exam (Pearson VUE), fingerprinting (FieldPrint), get appointed
-
-### Step 5: Certificate Generation (`src/app/api/certificates/route.ts`)
-
-**POST /api/certificates** — `{ enrollmentId }`
-
-1. **Validates all 5 prerequisites** (affidavit signed, final exam passed, seat time met, all modules completed, all quizzes passed).
-
-2. **Idempotency:** Checks if a certificate already exists for this enrollment. If so, returns the existing record.
-
-3. **Generates certificate number:** `TP4U-{STATE}-{TYPE}-{YEAR}-{8-DIGIT-SERIAL}`
-   - Example: `TP4U-FL-LIFE-2026-48291037`
-   - Retries up to 3 times on collision with existing numbers.
-
-4. **Generates PDF** using `pdfkit`:
-   - Letter size, landscape orientation
-   - Navy double border with blue accent lines
-   - "TESTPREP4U" header
-   - "Certificate of Completion" title
-   - Student name (28pt)
-   - Program name (mapped from course type):
-     - `life` → "Florida 2-14 Life Including Annuities & Variable Contracts Pre-Licensing"
-     - `health` → "Florida 2-15 Health Insurance Pre-Licensing"
-     - `combined` → "Florida 2-15 Life, Health & Variable Annuity Pre-Licensing"
-   - Total hours completed, completion date, certificate number
-   - Footer disclaimer: "This certificate confirms completion of the pre-licensing course. It does not constitute an insurance license."
-
-5. **Uploads PDF** to Supabase Storage bucket `certificates` at path `{userId}/{enrollmentId}.pdf`.
-
-6. **Inserts certificate record:**
-   ```sql
-   INSERT INTO certificates (enrollment_id, certificate_number, issued_at, hours_completed, pdf_url)
-   VALUES ($1, $2, $3, $4, $5)
-   ```
-
-7. **Updates enrollment status:**
-   ```sql
-   UPDATE enrollments SET status = 'completed', completed_at = $1 WHERE id = $2
-   ```
-
-8. **Sends `certificateReadyEmail()`** with certificate number and next steps.
-
-### Step 6: Certificate Download (`src/app/api/certificates/download/route.ts`)
-
-**GET /api/certificates/download?enrollmentId=...**
-
-1. Verifies enrollment ownership.
-2. Fetches `pdf_url` from `certificates` table.
-3. Generates a signed URL from Supabase Storage (valid for 1 hour).
-4. Returns `{ url: "https://..." }`.
-
-The `<CertificateActions>` client component creates a temporary `<a>` element and triggers the download with filename "TestPrep4U-Certificate.pdf".
+1. Student clicks the upgrade button on the Settings page.
+2. They're taken to a Stripe checkout page showing just the price difference.
+3. After paying, they're redirected back to Settings with a success banner.
+4. Their plan tier is immediately updated.
+5. Their access expiration date is extended by the difference in months (e.g., upgrading from Essentials to Pro adds 3 months to their current expiration).
 
 ---
 
-## 9. Upgrade Flow
+## 9. Emails Along the Way
 
-### How Upgrades Are Initiated
+Students receive emails at key moments throughout their journey. All emails are branded with the TestPrep4U look and feel.
 
-On the Settings page (`src/app/dashboard/settings/page.tsx`), if the user isn't on the highest tier, the `<UpgradeSection>` component displays available upgrade options.
+| When | Email | What It Says |
+|------|-------|-------------|
+| After confirming their email | **Welcome** | Greeting + 4-step onboarding guide + "Browse Courses" button |
+| After purchasing a course | **Enrollment Confirmation** | Course name, plan tier, access period, expiration date, "Go to Dashboard" button |
+| After passing a section quiz | **Section Complete** | Their score, a visual progress bar showing how far through the course they are, and what's next |
+| After passing the final exam | **Final Exam Passed** | Celebration message, their score, and a prompt to sign the self-study affidavit |
+| After generating their certificate | **Certificate Ready** | Certificate number, download link, and the three next steps (state exam, fingerprinting, appointment) |
+| When they submit the contact form | **Contact Confirmation** (to them) | "We received your message" + response time expectation |
+| When they submit the contact form | **Contact Notification** (to support) | The visitor's name, email, subject, and full message |
 
-**Upgrade options are computed server-side:**
-- Tier rank: `{ essentials: 1, pro: 2, premium: 3 }`
-- Only tiers with a higher rank than the current tier are shown.
-- For each option, calculates:
-  - `priceDifference` = target price - current price (from `PRICING_TIERS`)
-  - `additionalMonths` = target months - current months
-  - `newExpiresAt` = current expiration + additional months
-
-### UpgradeSection Component (`src/components/dashboard/UpgradeSection.tsx`)
-
-For each upgrade option, shows:
-- Tier name and tagline
-- New features (features in target tier not in current)
-- Additional months badge with new expiration date
-- Price difference with calculation breakdown (e.g., "Pro ($219) - Essentials ($179)")
-- "Pay ${difference} to upgrade" button
-
-### Upgrade API Route (`src/app/api/upgrade/route.ts`)
-
-**POST /api/upgrade** — `{ targetTier, courseType, enrollmentId }`
-
-1. Authenticates user.
-2. Verifies enrollment exists, belongs to user, and is active.
-3. Validates target tier is higher than current tier.
-4. Calculates prorated price difference.
-5. Creates a Stripe Checkout Session with `price_data` (not a pre-set Price ID) for the difference amount:
-   ```
-   line_items[0].price_data.unit_amount = priceDifference * 100  (cents)
-   product_data.name = "Upgrade from {Old} to {New}"
-   ```
-6. Metadata includes: `upgrade: "true"`, `enrollment_id`, `old_tier`, `tier` (new), `user_id`, `course_type`.
-7. Success URL: `/dashboard/settings?upgrade=success`
-8. Cancel URL: `/dashboard/settings?upgrade=cancelled`
-
-### Upgrade Webhook Handler
-
-When the Stripe webhook receives a `checkout.session.completed` with `metadata.upgrade === "true"`:
-
-1. **Idempotency:** Checks `time_logs` for an entry with `source = "upgrade:{sessionId}"`.
-
-2. **Ownership verification:** Confirms `enrollment.user_id` matches `metadata.user_id`.
-
-3. **Extends expiration:**
-   ```js
-   const oldMonths = TIER_ACCESS_MONTHS[oldTier];  // e.g., 6
-   const newMonths = TIER_ACCESS_MONTHS[newTier];   // e.g., 9
-   const additionalMonths = newMonths - oldMonths;  // e.g., 3
-   // Add additionalMonths to current expires_at (with month overflow clamping)
-   ```
-
-4. **Updates:**
-   - `enrollments.expires_at` — extended by the month difference
-   - `profiles.plan_tier` — updated to new tier
-   - `profiles.stripe_customer_id` — updated if available
-
-5. **Writes idempotency marker:** Inserts a `time_logs` row with `duration_seconds: 0` and `source: "upgrade:{sessionId}"`.
+Emails are sent instantly and don't block whatever the student was doing — if the email fails to send for any reason, it doesn't affect the student's experience on the platform.
 
 ---
 
-## 10. Email System
+## 10. Behind the Scenes
 
-### All 7 Email Templates (`src/lib/emails.ts`)
+This section covers how the platform stays secure and reliable. It's still non-technical, but covers things a stakeholder might want to know about.
 
-| # | Template | Trigger | Subject |
-|---|----------|---------|---------|
-| 1 | `welcomeEmail(name)` | Email confirmation callback (new user) | "Welcome to TestPrep4U — Let's Get You Licensed!" |
-| 2 | `enrollmentEmail({name, courseName, tier, accessMonths, expiresAt})` | Stripe webhook: enrollment created | "You're Enrolled — {courseName}" |
-| 3 | `sectionCompletedEmail({name, sectionTitle, sectionNumber, score, totalSections, completedSections, courseSlug})` | Quiz submit: section quiz passed | "Section {N} Complete — {score}%!" |
-| 4 | `finalExamPassedEmail({name, score, courseName, courseSlug})` | Quiz submit: final exam passed | "You Passed the Final Exam! — {score}%" |
-| 5 | `certificateReadyEmail({name, courseName, certificateNumber, courseSlug})` | Certificate generated | "Your Completion Certificate Is Ready!" |
-| 6 | `contactNotificationEmail({name, email, subject, message})` | Contact form submitted (sent to support) | "[Contact Form] {subject} — from {name}" |
-| 7 | `contactConfirmationEmail(name)` | Contact form submitted (sent to user) | "We Received Your Message — TestPrep4U" |
+### Account Security
 
-### Email Contents
+- **Email verification required.** Nobody can access the platform without confirming their email address first.
+- **Password security.** Passwords are handled entirely by Supabase (the authentication provider) — TestPrep4U never sees or stores passwords directly. Minimum 8 characters.
+- **Session management.** Login sessions are maintained via secure cookies. The platform checks the session on every page load and logs users out if their session has expired.
+- **Protected routes.** All dashboard pages require authentication. If someone tries to access a dashboard URL without being logged in, they're redirected to the login page.
 
-**Welcome (#1):** Greeting, 4-step onboarding guide, "Browse Courses" CTA to `/pricing`.
+### Data Protection
 
-**Enrollment (#2):** Confirmation with details table (program, plan, access period, expiration), "Go to Your Dashboard" CTA.
+- **Row-level security.** Every student can only see their own data. Even if someone tried to manipulate requests, the database enforces that students can only read and write their own records.
+- **Enrollment protection.** Students can't create their own enrollments — only the payment system can do that. This prevents anyone from getting free access.
+- **Immutable audit trails.** Study time logs and exam attempts can never be edited or deleted, even by administrators. This satisfies Florida's regulatory requirements.
+- **Question bank security.** The correct answers to quiz and exam questions are never sent to the student's browser. All grading happens on the server.
 
-**Section Complete (#3):** Score badge, visual progress bar showing sections completed, "What's next?" guidance, "Continue Studying" CTA.
+### Payment Security
 
-**Final Exam Passed (#4):** Celebration emoji, score, "Next Step: Sign the Self-Study Affidavit" guidance, "Sign Affidavit" CTA.
+- **Stripe handles all payment processing.** Credit card numbers never touch the TestPrep4U servers.
+- **Duplicate payment protection.** The system checks for existing enrollments before creating new ones, so even if Stripe sends a payment notification twice, only one enrollment is created.
+- **Webhook verification.** Every payment notification from Stripe is cryptographically verified to prevent forgery.
 
-**Certificate Ready (#5):** Trophy emoji, certificate number in monospace font, "Download Certificate" CTA, 3 next steps (Pearson VUE, FieldPrint, appointment).
+### Compliance (Florida DFS)
 
-**Contact Notification (#6):** Contact details table + full message. Subject line strips newlines to prevent header injection.
+- **Granular time tracking.** Every study session is logged individually with start time, end time, and duration.
+- **Session caps.** No single session can count for more than 4 hours, preventing clock manipulation.
+- **3-year record retention.** Enrollment records, time logs, exam attempts, and certificates are retained for at least 3 years per Florida Department of Financial Services requirements.
+- **Affidavit records.** The self-study affidavit captures the student's typed name, IP address, browser information, and exact timestamp.
 
-**Contact Confirmation (#7):** "Thanks for reaching out" + "within one business day" promise + FAQ link.
+### Infrastructure Overview
 
-### Resend Setup (`src/lib/resend.ts`, `src/lib/send-email.ts`)
+- **Hosting:** The platform runs on Vercel with automatic deployments whenever code changes are pushed.
+- **Authentication:** Supabase handles user accounts, email verification, and password resets.
+- **Database:** Supabase provides a PostgreSQL database with built-in security policies.
+- **Payments:** Stripe processes all payments via one-time checkout sessions.
+- **Email:** Resend delivers all transactional emails from noreply@testprep4u.com.
+- **Course content:** Articulate Rise 360 exports are served as interactive web content within the platform.
 
-**Client initialization:**
-```js
-getResend() → new Resend(process.env.RESEND_API_KEY)
-```
-Throws a clear error if `RESEND_API_KEY` is not set.
+### Pre-Launch Notes
 
-**Sending:**
-```js
-sendEmail({ to, subject, html, replyTo? })
-```
-- Fire-and-forget: does not `await` the result.
-- Errors are caught and logged to console (never block the API response).
-- `from` address: `"TestPrep4U <noreply@testprep4u.com>"`
-- Contact form emails use `await` (not fire-and-forget) since they're the primary response.
-
-### XSS Prevention
-
-The `esc()` function escapes all dynamic content in templates:
-```js
-function esc(str) {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-```
-
-The `button()` helper escapes both text and href. All user-provided values (names, email addresses, course names) are escaped before insertion into HTML.
-
-Contact form email subject additionally strips newlines: `.replace(/[\r\n]+/g, " ").trim()`.
-
----
-
-## 11. Security
-
-### RLS Policies Summary
-
-| Table | SELECT | INSERT | UPDATE | DELETE |
-|-------|--------|--------|--------|--------|
-| `profiles` | Own row (`auth.uid() = id`) | Own row | Own row | — |
-| `courses` | Public (`active = true`) | — | — | — |
-| `course_sections` | Public (`true`) | — | — | — |
-| `course_modules` | Public (`true`) | — | — | — |
-| `enrollments` | Own rows (`user_id = auth.uid()`) | Service role only | Service role only | — |
-| `module_progress` | Own enrollment | Own enrollment | Own enrollment | — |
-| `time_logs` | Own enrollment | Own enrollment | **None (immutable)** | **None (immutable)** |
-| `exam_attempts` | Own enrollment | Own enrollment | — | — |
-| `question_bank` | **Service role only** | — | — | — |
-| `certificates` | Own enrollment | Service role only | — | — |
-
-**Key restrictions:**
-- Students cannot read `question_bank` directly (prevents reading `correct_index`).
-- Students cannot create enrollments (only Stripe webhook via service role).
-- Students cannot update enrollments (only service role — affidavit, completion).
-- `time_logs` are immutable — no update or delete policies.
-- Certificate inserts are service role only.
-
-### Auth Checks on API Routes
-
-Every API route (except the Stripe webhook) follows this pattern:
-```js
-const supabase = await createServerSupabaseClient();
-const { data: { user } } = await supabase.auth.getUser();
-if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-```
-
-Additionally, routes that operate on enrollment data verify ownership:
-```js
-const { data: enrollment } = await supabase.from("enrollments")...
-if (!enrollment || enrollment.user_id !== user.id) {
-  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-}
-```
-
-The Stripe webhook verifies the `stripe-signature` header:
-```js
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-if (!webhookSecret) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
-event = getStripe().webhooks.constructEvent(body, signature, webhookSecret);
-```
-
-### Input Validation
-
-| Route | Validation |
-|-------|-----------|
-| `/api/quiz/start` | `sectionNumber` must be non-negative integer; `type` is implicitly validated by branching |
-| `/api/quiz/submit` | `type` must be in `["section_quiz", "practice", "final"]`; each answer must have `questionId` (string) and `selectedIndex` (number) |
-| `/api/scorm/save` | `sessionTimeSeconds` validated as positive finite number; capped at 14,400s; score kept in 0–100 range |
-| `/api/user/profile` | `fullName` 1–100 chars; `phone` ≤ 20 chars; `state` must be in `["FL"]` |
-| `/api/affidavit` | `typedName` max 200 characters |
-| `/api/contact` | Name max 200, subject max 300, message max 5000; email format regex; all fields required |
-| `/api/checkout` | `tier` and `courseType` validated against allowed values |
-| `/api/upgrade` | Target tier must be higher rank than current; enrollment must be active |
-
-### Rate Limiting
-
-- **Contact form** (`src/app/api/contact/route.ts`): In-memory rate limiter — 1 submission per email per 60 seconds. Stale entries cleaned every 5 minutes.
-- Other routes rely on Supabase Auth's built-in rate limiting for login attempts.
-
-### Security Headers (`next.config.ts`)
-
-Applied to all routes via `headers()`:
-```
-X-Frame-Options: SAMEORIGIN
-X-Content-Type-Options: nosniff
-Referrer-Policy: strict-origin-when-cross-origin
-```
-
-Note: `X-Frame-Options` is set to `SAMEORIGIN` (not `DENY`) to allow SCORM content to load in iframes within the platform.
-
-### Additional Security Measures
-
-- **Admin client isolation** (`src/lib/supabase/server.ts`): Uses `createClient` from `@supabase/supabase-js` (not `createServerClient` from `@supabase/ssr`) — no cookie handling, no session auto-refresh, no session persistence.
-- **Open redirect prevention** in auth callback: `next` param must start with `/` and not `//`.
-- **Score preservation:** SCORM save route never downgrades completed status or passed status.
-- **Time manipulation prevention:** Session time capped at 4 hours; server-side enforcement.
-- **Webhook idempotency:** `stripe_session_id` unique index prevents duplicate enrollments; upgrade handler uses `time_logs` entry as idempotency marker.
-- **Certificate number collision:** Generates 8-digit random serial with up to 3 retries on collision.
-- **Environment variable guards:** `RESEND_API_KEY`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` throw clear errors if missing.
-- **Robots blocked:** `public/robots.txt` disallows all crawlers and root layout metadata sets `noindex, nofollow` until launch.
-
----
-
-## 12. Infrastructure
-
-### Supabase
-
-**Auth:**
-- Email/password authentication via `@supabase/ssr` for cookie-based sessions.
-- Email confirmation required before first login.
-- Password reset via Supabase auth flow.
-- Profile auto-creation via database trigger on `auth.users` insert.
-
-**Database (PostgreSQL):**
-- 10 tables with Row Level Security on all.
-- Foreign key cascades on delete for data cleanup.
-- Unique constraints for idempotency (`stripe_session_id`, `certificate_number`, `enrollment_id + module_id`).
-- CHECK constraints on enum-like columns (`status`, `module_type`, `exam_type`, etc.).
-
-**Storage:**
-- `scorm-packages` bucket — SCORM course files (private, authenticated read).
-- `certificates` bucket — generated certificate PDFs (private, user reads own folder via `storage.foldername(name)[1] = auth.uid()`).
-
-### Stripe
-
-**Payments:**
-- One-time payment via Stripe Checkout Sessions (`mode: "payment"`).
-- 9 pre-configured Price IDs (3 tiers x 3 course types).
-- Upgrade payments use dynamic `price_data` for the prorated difference.
-
-**Webhooks:**
-- Single endpoint: `POST /api/webhooks/stripe`.
-- Handles `checkout.session.completed` event.
-- Routes to new enrollment creation or upgrade handler based on `metadata.upgrade` flag.
-- Signature verification via `STRIPE_WEBHOOK_SECRET`.
-- Idempotent via `stripe_session_id` unique index.
-
-### Resend
-
-**Email delivery:**
-- Singleton Resend client initialized with `RESEND_API_KEY`.
-- From address: `TestPrep4U <noreply@testprep4u.com>`.
-- 7 HTML email templates with inline styles for compatibility.
-- Fire-and-forget pattern (non-blocking) for transactional emails.
-- Contact form emails use `await` for reliable delivery.
-
-### Vercel
-
-**Hosting:**
-- Next.js 16 App Router deployed via GitHub auto-deploy.
-- GitHub org: `wyatt-thedigitalwash`.
-- Branch: `main` (auto-deploys on push).
-- Server-side rendering for dashboard pages (auth checks, data fetching).
-- API routes run as serverless functions.
-
-### Environment Variables
-
-| Variable | Scope | Purpose |
-|----------|-------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Client + Server | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + Server | Supabase anonymous/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Supabase admin key (bypasses RLS) |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Client + Server | Stripe publishable key |
-| `STRIPE_SECRET_KEY` | Server only | Stripe secret key |
-| `STRIPE_WEBHOOK_SECRET` | Server only | Stripe webhook signature secret |
-| `RESEND_API_KEY` | Server only | Resend email API key |
-| `NEXT_PUBLIC_SITE_URL` | Client + Server | Site URL for email links (default: `https://www.testprep4u.com`) |
-
-All values are configured in Vercel environment settings. `NEXT_PUBLIC_` variables are exposed to the browser bundle. All others are server-only.
-
-### Missing Environment Variable Guards
-
-- `RESEND_API_KEY` — `getResend()` throws `"RESEND_API_KEY environment variable is not set"`.
-- `STRIPE_SECRET_KEY` — `getStripe()` throws `"STRIPE_SECRET_KEY environment variable is not set"`.
-- `STRIPE_WEBHOOK_SECRET` — webhook route returns 500 with `"Server misconfiguration"`.
+The site currently blocks search engines from indexing it. Before the official launch, the search engine blocks need to be removed so the site appears in Google and other search results.

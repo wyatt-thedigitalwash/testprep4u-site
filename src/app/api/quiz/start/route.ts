@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 
+const QUESTION_LIMITS: Record<string, number> = {
+  final: 85,
+  practice: 50,
+  section_quiz: 10,
+};
+
 export async function POST(request: Request) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -12,7 +18,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { type, courseId, sectionNumber } = await request.json();
+    const { type, courseId, sectionNumber, mode } = await request.json();
+    const quizMode = mode === "exam" ? "exam" : "learning";
 
     if (!type || !courseId) {
       return NextResponse.json(
@@ -32,13 +39,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Verify active enrollment
+    // Verify active, non-expired enrollment
     const { data: enrollment } = await supabase
       .from("enrollments")
       .select("id")
       .eq("user_id", user.id)
       .eq("course_id", course.id)
       .eq("status", "active")
+      .gt("expires_at", new Date().toISOString())
       .single();
 
     if (!enrollment) {
@@ -126,12 +134,12 @@ export async function POST(request: Request) {
       const adminClient = createAdminClient();
       const { data: questionData, error: qErr } = await adminClient
         .from("question_bank")
-        .select("id, question_text, options, topic")
+        .select("id, question_text, options, topic, correct_index, explanation")
         .eq("course_id", course.id)
         .in("exam_type", ["practice", "both"]);
 
       if (qErr) {
-        console.error("Question fetch error:", qErr);
+        console.error("Question fetch error (section quiz):", qErr);
         return NextResponse.json(
           { error: "Failed to load questions" },
           { status: 500 }
@@ -175,12 +183,12 @@ export async function POST(request: Request) {
       const adminClient = createAdminClient();
       const { data: questionData, error: qErr } = await adminClient
         .from("question_bank")
-        .select("id, question_text, options, topic")
+        .select("id, question_text, options, topic, correct_index, explanation")
         .eq("course_id", course.id)
         .in("exam_type", examFilter);
 
       if (qErr) {
-        console.error("Question fetch error:", qErr);
+        console.error("Question fetch error (exam):", qErr);
         return NextResponse.json(
           { error: "Failed to load questions" },
           { status: 500 }
@@ -197,13 +205,18 @@ export async function POST(request: Request) {
     }
 
     // Limit question count by type
-    let limit = questions.length;
-    if (type === "final") limit = Math.min(85, questions.length);
-    else if (type === "practice") limit = Math.min(50, questions.length);
-    else if (type === "section_quiz") limit = Math.min(10, questions.length);
+    const maxQuestions = QUESTION_LIMITS[type] || questions.length;
+    const limit = Math.min(maxQuestions, questions.length);
+
+    // Strip answer data for exam mode (don't expose correct_index/explanation)
+    const sliced = questions.slice(0, limit);
+    const responseQuestions =
+      quizMode === "exam"
+        ? sliced.map(({ correct_index, explanation, ...rest }) => rest)
+        : sliced;
 
     return NextResponse.json({
-      questions: questions.slice(0, limit),
+      questions: responseQuestions,
     });
   } catch (err) {
     console.error("Quiz start error:", err);

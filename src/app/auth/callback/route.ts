@@ -84,11 +84,21 @@ export async function GET(request: Request) {
         }
       }
 
-      // New users with no explicit next param default to /pricing
-      const redirect = sanitizeRedirect(
-        nextParam,
-        isNewUser ? "/pricing" : "/dashboard"
-      );
+      // Check admin status for redirect
+      let defaultRedirect = isNewUser ? "/pricing" : "/dashboard";
+      if (!isNewUser && !isResetFlow && user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.is_admin) {
+          defaultRedirect = "/admin";
+        }
+      }
+
+      const redirect = sanitizeRedirect(nextParam, defaultRedirect);
       return NextResponse.redirect(`${origin}${redirect}`);
     }
 

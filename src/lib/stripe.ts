@@ -29,6 +29,13 @@ export const STRIPE_PRICE_IDS: Record<string, string> = {
   "premium-combined": "price_1TFHVDDpayTd63L2vdktgL3c",
 };
 
+// Flash Cards add-on — standalone purchase for Essentials users.
+// Pro and Premium tiers include flash cards by default.
+// ⚠ CLIENT ACTION REQUIRED: Create the Flash Cards add-on product/price in
+// Stripe Dashboard and replace the placeholder ID below before launch.
+// Checkout will fail until this is set to a real Stripe Price ID.
+export const FLASH_CARDS_ADDON_PRICE_ID = "price_flash_cards_addon_TODO";
+
 export function getStripePriceId(
   tier: string,
   courseType: string

@@ -30,8 +30,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { type, courseId, sectionNumber, answers, timeSpentSeconds } =
+    const { type, courseId, sectionNumber, answers, timeSpentSeconds, mode, markedForReview } =
       await request.json();
+    const quizMode = mode === "exam" ? "exam" : "learning";
 
     // Validate type against allowed values
     const ALLOWED_TYPES = ["section_quiz", "practice", "final"];
@@ -68,13 +69,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Look up enrollment
+    // Look up active, non-expired enrollment
     const { data: enrollment } = await supabase
       .from("enrollments")
       .select("id")
       .eq("user_id", user.id)
       .eq("course_id", course.id)
       .eq("status", "active")
+      .gt("expires_at", new Date().toISOString())
       .single();
 
     if (!enrollment) {
@@ -91,6 +93,7 @@ export async function POST(request: Request) {
     const { data: questions } = await adminClient
       .from("question_bank")
       .select("id, question_text, options, correct_index, explanation, topic")
+      .eq("course_id", course.id)
       .in("id", questionIds);
 
     if (!questions || questions.length === 0) {
@@ -217,6 +220,8 @@ export async function POST(request: Request) {
         passed,
         time_spent_seconds: cappedTime,
         answers,
+        mode: quizMode,
+        marked_for_review: Array.isArray(markedForReview) ? markedForReview : null,
       });
     }
 

@@ -28,7 +28,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { targetTier, courseType, enrollmentId } = await request.json();
+    const { targetTier, courseType, enrollmentId, discountCode } =
+      await request.json();
 
     if (!targetTier || !courseType || !enrollmentId) {
       return NextResponse.json(
@@ -93,8 +94,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const currentPrice = currentTierData.prices[ct] || currentTierData.prices.life;
-    const targetPrice = targetTierData.prices[ct] || targetTierData.prices.life;
+    const currentPrice =
+      currentTierData.prices[ct] || currentTierData.prices.life;
+    const targetPrice =
+      targetTierData.prices[ct] || targetTierData.prices.life;
     const priceDifference = targetPrice - currentPrice;
 
     if (priceDifference <= 0) {
@@ -121,6 +124,7 @@ export async function POST(request: Request) {
     const params: Record<string, unknown> = {
       mode: "payment",
       payment_method_types: ["card"],
+      allow_promotion_codes: true,
       line_items: [
         {
           price_data: {
@@ -143,6 +147,7 @@ export async function POST(request: Request) {
         upgrade: "true",
         enrollment_id: enrollmentId,
         old_tier: currentTier,
+        discount_code: "",
       },
     };
 
@@ -150,6 +155,13 @@ export async function POST(request: Request) {
       params.customer = profile.stripe_customer_id;
     } else {
       params.customer_email = user.email;
+    }
+
+    // Store discount code in metadata for webhook tracking.
+    // Stripe's promotion code field handles the actual discount.
+    if (discountCode && typeof discountCode === "string") {
+      (params.metadata as Record<string, string>).discount_code =
+        discountCode.trim().toUpperCase();
     }
 
     const session = await getStripe().checkout.sessions.create(

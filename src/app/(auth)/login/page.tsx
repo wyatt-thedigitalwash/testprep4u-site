@@ -75,17 +75,20 @@ function LoginForm() {
         return;
       }
 
-      // No plan context — check if user has active enrollments
+      // Check admin status and enrollment state for redirect
       try {
         const res = await fetch("/api/user/has-enrollments");
         if (!res.ok) {
           router.push("/dashboard");
         } else {
           const data = await res.json();
-          router.push(data.hasEnrollments ? "/dashboard" : "/pricing");
+          if (data.isAdmin) {
+            router.push("/admin");
+          } else {
+            router.push(data.hasEnrollments ? "/dashboard" : "/pricing");
+          }
         }
       } catch {
-        // Fallback to dashboard on error
         router.push("/dashboard");
       }
       router.refresh();
