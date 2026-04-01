@@ -121,10 +121,12 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SITE_URL ||
       "https://www.testprep4u.com";
 
+    // Note: allow_promotion_codes is NOT set here because Stripe doesn't
+    // support promotion codes with price_data line items. Discount codes
+    // for upgrades are applied via the UpgradeSection UI and stored in metadata.
     const params: Record<string, unknown> = {
       mode: "payment",
       payment_method_types: ["card"],
-      allow_promotion_codes: true,
       line_items: [
         {
           price_data: {

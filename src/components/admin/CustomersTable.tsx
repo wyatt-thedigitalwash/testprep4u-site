@@ -176,7 +176,7 @@ export function CustomersTable() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `customers-${new Date().toISOString().split("T")[0]}.${format === "xlsx" ? "csv" : "csv"}`;
+      a.download = `customers-${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {

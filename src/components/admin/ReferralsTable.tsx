@@ -12,6 +12,7 @@ import {
   GitBranch,
   DollarSign,
   CheckCircle2,
+  XCircle,
   Clock,
   TrendingUp,
 } from "lucide-react";
@@ -195,7 +196,7 @@ export function ReferralsTable() {
         <div className={`fixed right-6 top-20 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 shadow-lg ${
           toast.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"
         }`}>
-          <CheckCircle2 size={16} />
+          {toast.type === "success" ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}

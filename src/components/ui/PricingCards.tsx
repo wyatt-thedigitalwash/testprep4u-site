@@ -53,8 +53,9 @@ function PricingCardsInner({
   const { ref, isInView } = useInView<HTMLDivElement>({ threshold: 0.05 });
 
   // Show full-screen loading when auto-checkout is triggered
+  const discountParam = searchParams.get("discount") || "";
   if (autoCheckout && planParam) {
-    return <AutoCheckoutLoader planParam={planParam} courseType={resolvedInitial} />;
+    return <AutoCheckoutLoader planParam={planParam} courseType={resolvedInitial} discountCode={discountParam} />;
   }
 
   return (
@@ -117,9 +118,11 @@ function PricingCardsInner({
 function AutoCheckoutLoader({
   planParam,
   courseType,
+  discountCode,
 }: {
   planParam: string;
   courseType: CourseType;
+  discountCode: string;
 }) {
   const router = useRouter();
   const firedRef = useRef(false);
@@ -143,10 +146,13 @@ function AutoCheckoutLoader({
           }
         }
 
+        const checkoutBody: Record<string, string> = { tier: planParam, courseType };
+        if (discountCode) checkoutBody.discountCode = discountCode;
+
         const res = await fetch("/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tier: planParam, courseType }),
+          body: JSON.stringify(checkoutBody),
         });
 
         if (!res.ok) {
@@ -244,12 +250,13 @@ function TierCard({ tier, courseType, isInView, delay, autoCheckout, appliedDisc
 
       if (!res.ok) {
         if (res.status === 401) {
-          // Not logged in — redirect to signup with plan context
+          // Not logged in — redirect to signup with plan + discount context
           localStorage.setItem(
             "pendingCheckout",
-            JSON.stringify({ plan: tier.slug, course: courseType })
+            JSON.stringify({ plan: tier.slug, course: courseType, discount: appliedDiscount?.code || "" })
           );
-          router.push(`/signup?plan=${tier.slug}&course=${courseType}`);
+          const discountParam = appliedDiscount ? `&discount=${encodeURIComponent(appliedDiscount.code)}` : "";
+          router.push(`/signup?plan=${tier.slug}&course=${courseType}${discountParam}`);
           setLoading(false);
           return;
         }
