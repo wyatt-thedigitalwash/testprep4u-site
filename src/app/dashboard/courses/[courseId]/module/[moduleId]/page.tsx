@@ -210,19 +210,6 @@ export default async function ModulePage({ params }: Props) {
       : null;
   const isLastModule = currentIdx === allModulesOrdered.length - 1;
 
-  // Resolve SCORM entry path — if stored in Supabase Storage, generate a signed URL
-  let resolvedScormPath = mod.scorm_entry_path;
-  if (mod.scorm_entry_path.startsWith("storage:")) {
-    const storagePath = mod.scorm_entry_path.replace("storage:", "");
-    const { data: signedUrlData } = await supabase.storage
-      .from("scorm-packages")
-      .createSignedUrl(storagePath, 7200); // 2 hour expiry
-
-    if (signedUrlData?.signedUrl) {
-      resolvedScormPath = signedUrlData.signedUrl;
-    }
-  }
-
   // Build learner name in "Last, First" format for SCORM
   const meta = user.user_metadata || {};
   const fullName = meta.full_name || meta.name || "";
@@ -237,7 +224,7 @@ export default async function ModulePage({ params }: Props) {
     <ModuleLauncher
       moduleId={mod.id}
       moduleTitle={mod.title}
-      scormEntryPath={resolvedScormPath}
+      scormEntryPath={mod.scorm_entry_path}
       courseSlug={courseId}
       enrollmentId={enrollment.id}
       learnerId={user.id}

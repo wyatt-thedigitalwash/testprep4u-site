@@ -271,10 +271,8 @@ export function ModuleLauncher({
     return () => window.removeEventListener("message", handleMessage);
   }, [handleClose]);
 
-  // scormEntryPath is either a relative path (public/) or a full signed URL (Supabase Storage)
-  const iframeSrc = scormEntryPath.startsWith("http")
-    ? scormEntryPath
-    : `/${scormEntryPath}`;
+  // SCORM packages are served as static assets from public/scorm/
+  const iframeSrc = `/${scormEntryPath}`;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/70">
